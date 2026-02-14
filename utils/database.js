@@ -471,6 +471,47 @@ class Database {
   async getABTests() { return await this.getAll('cexi_ab_tests'); }
   async saveABTests(tests) { return await this.syncTable('cexi_ab_tests', tests); }
 
+  // --- Pterodactyl Panels ---
+  async getPteroPanels() { return await this.getAll('cexi_ptero_panels'); }
+
+  async addPteroPanel(panel) {
+    return withRetry(async () => {
+      const dbPanel = toDb(panel);
+      const { data, error } = await supabase
+        .from('cexi_ptero_panels')
+        .insert(dbPanel)
+        .select()
+        .single();
+      if (error) { console.error('Error adding ptero panel:', error.message); return null; }
+      return fromDb(data);
+    });
+  }
+
+  async updatePteroPanel(id, updates) {
+    return withRetry(async () => {
+      const dbUpdates = toDb(updates);
+      const { data, error } = await supabase
+        .from('cexi_ptero_panels')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) { console.error('Error updating ptero panel:', error.message); return null; }
+      return fromDb(data);
+    });
+  }
+
+  async deletePteroPanel(id) {
+    return withRetry(async () => {
+      const { error } = await supabase
+        .from('cexi_ptero_panels')
+        .delete()
+        .eq('id', id);
+      if (error) { console.error('Error deleting ptero panel:', error.message); return false; }
+      return true;
+    });
+  }
+
 }
 
 module.exports = new Database();

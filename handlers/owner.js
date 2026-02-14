@@ -35,6 +35,7 @@ async function handleOwnerPanel(ctx) {
       Markup.button.callback(lang === 'en' ? '⚙️ System Functions' : '⚙️ Fungsi Sistem', 'system_panel')
     ],
     [Markup.button.callback('📊 Analytics / Analitik', 'owner_analytics'), Markup.button.callback('🔧 Advanced Settings / Tetapan Lanjutan', 'owner_advanced')],
+    [Markup.button.callback(lang === 'ms' ? '🖥️ Panel Server' : '🖥️ Server Panel', 'server_panel')],
     [Markup.button.callback(lang === 'ms' ? '📥 Semak Kemas Kini' : '📥 Check Updates', 'check_update')],
     [Markup.button.callback(t('btnBack', lang), 'main_menu')]
   ];

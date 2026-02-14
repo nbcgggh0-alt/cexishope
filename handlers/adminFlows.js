@@ -563,6 +563,14 @@ async function processAdminFlowInput(ctx) {
                 return true;
             }
 
+            // ── Pterodactyl Panel Flow ─────────────────
+            case 'ptero_add_domain':
+            case 'ptero_add_ptla':
+            case 'ptero_add_ptlc': {
+                const { processPteroFlowInput } = require('./serverPanel');
+                return await processPteroFlowInput(ctx, state, text, lang);
+            }
+
             default:
                 clearAdminFlow(userId);
                 return false;

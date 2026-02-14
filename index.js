@@ -8,6 +8,7 @@ const { handleAdminPanel, handleAdminOrders, handleVerifyOrder, handleRejectOrde
 const { handleCategoryManagement, handleCategoryDetail, handleDeleteCategory, handleEditCategoryName, handleEditCategoryIcon, processCategoryEdit } = require('./handlers/categoryManagement');
 const { handleProductManagementMenu, handleProductList, handleProductDetail, handleToggleProduct, handleDeleteProductConfirm, handleDeleteProduct, handleEditProductField, processProductEdit, handleLowStockProducts } = require('./handlers/productManagementImproved');
 const { handleOwnerPanel, handleOwnerAdmins, handleSetOwner, handleAddAdmin, handleRemoveAdmin, handleOwnerSettings, handleOwnerBackup, handleOwnerAnalytics, handleOwnerAdvanced } = require('./handlers/owner');
+const { handleServerPanel, handleViewPanel, handleServerPower, handleCreateServer, handleSetPrimary, handleDeletePanel, handleConfirmDeletePanel, handleHealthCheck, handleAddPanelStart } = require('./handlers/serverPanel');
 const { handleSupport, handleJoinSession, handleLeaveSession, handleCloseSession, handleEndSession, handleSessionMessage, handleListSessions, handleSetActiveSession, handleSendToSession } = require('./handlers/session');
 const { handleBanUser, handleUnbanUser, handleTagUser, handleUntagUser, handleListBannedUsers, checkIfBanned } = require('./handlers/userManagement');
 const { handleSearchOrders, handleFilterOrders, handleFilterCallback } = require('./handlers/orderSearch');
@@ -1119,6 +1120,29 @@ bot.action('owner_panel', safeHandler(handleOwnerPanel));
 bot.action('owner_admins', safeHandler(handleOwnerAdmins));
 bot.action('owner_settings', safeHandler(handleOwnerSettings));
 bot.action('owner_backup', safeHandler(handleOwnerBackup));
+
+// Pterodactyl Server Panel
+bot.action('server_panel', safeHandler(handleServerPanel));
+bot.action('ptero_add', safeHandler(handleAddPanelStart));
+bot.action(/^ptero_view_(\d+)$/, safeHandler(async (ctx) => {
+  await handleViewPanel(ctx, ctx.match[1]);
+}));
+bot.action(/^ptero_power_(\d+)_(start|stop|restart)$/, safeHandler(async (ctx) => {
+  await handleServerPower(ctx, ctx.match[1], ctx.match[2]);
+}));
+bot.action(/^ptero_create_(\d+)$/, safeHandler(async (ctx) => {
+  await handleCreateServer(ctx, ctx.match[1]);
+}));
+bot.action(/^ptero_primary_(\d+)$/, safeHandler(async (ctx) => {
+  await handleSetPrimary(ctx, ctx.match[1]);
+}));
+bot.action(/^ptero_delete_(\d+)$/, safeHandler(async (ctx) => {
+  await handleDeletePanel(ctx, ctx.match[1]);
+}));
+bot.action(/^ptero_confirmdelete_(\d+)$/, safeHandler(async (ctx) => {
+  await handleConfirmDeletePanel(ctx, ctx.match[1]);
+}));
+bot.action('ptero_healthcheck', safeHandler(handleHealthCheck));
 
 bot.action('auto_promote_panel', safeHandler(handleAutoPromotePanel));
 bot.action('promo_create_broadcast', safeHandler(handleCreateBroadcast));
