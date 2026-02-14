@@ -343,6 +343,10 @@ bot.command('deletefaq', safeHandler(async (ctx) => {
   await handleDeleteFAQ(ctx, faqId);
 }));
 
+// Admin & Owner shortcuts
+bot.command('admin', safeHandler(handleAdminPanel));
+bot.command('owner', safeHandler(handleOwnerPanel));
+
 // Currency & Feedback
 bot.command('currency', safeHandler(handleSetCurrency));
 
