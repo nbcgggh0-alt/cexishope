@@ -41,6 +41,17 @@ async function listServers(panel) {
     }
 }
 
+// Get all users on panel (Application API)
+async function listUsers(panel) {
+    try {
+        const client = createClient(panel, 'app');
+        const res = await client.get('/application/users?per_page=50');
+        return { success: true, users: res.data.data || [] };
+    } catch (err) {
+        return { success: false, error: err.message, users: [] };
+    }
+}
+
 // Get server resource usage (Client API)
 async function getServerStatus(panel) {
     if (!panel.serverIdentifier) return { success: false, error: 'No server linked' };
@@ -87,7 +98,7 @@ async function createServer(panel, config = {}) {
 
         const payload = {
             name: serverName,
-            user: 1, // Default admin user
+            user: config.userId || 1,
             egg: config.egg || 15,
             docker_image: config.dockerImage || 'ghcr.io/pterodactyl/yolks:nodejs_18',
             startup: config.startup || 'npm start',
@@ -192,6 +203,7 @@ async function autoFailover(panels, db) {
 module.exports = {
     testConnection,
     listServers,
+    listUsers,
     getServerStatus,
     sendPowerAction,
     createServer,

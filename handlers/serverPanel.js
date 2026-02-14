@@ -167,8 +167,67 @@ async function handleServerPower(ctx, panelId, action) {
     }
 }
 
-// ─── Create Server ───────────────────────────────────────────
+// ─── Create Server (Step 1: Select User) ─────────────────────
 async function handleCreateServer(ctx, panelId) {
+    const userId = ctx.from.id;
+    if (!await isOwner(userId)) {
+        await ctx.answerCbQuery('❌ Owner only');
+        return;
+    }
+
+    const panels = await db.getPteroPanels();
+    const panel = panels.find(p => p.id === parseInt(panelId));
+    if (!panel) {
+        await ctx.answerCbQuery('Panel not found');
+        return;
+    }
+
+    const user = await db.getUser(userId);
+    const lang = user?.language || 'ms';
+
+    await ctx.answerCbQuery('⏳ Loading users...');
+
+    // Fetch users from panel
+    const usersResult = await ptero.listUsers(panel);
+    if (!usersResult.success || usersResult.users.length === 0) {
+        await safeEditMessage(ctx,
+            lang === 'ms'
+                ? `❌ *Gagal mendapatkan senarai user dari panel.*\n\n${usersResult.error || 'Tiada user dijumpai.'}`
+                : `❌ *Failed to fetch users from panel.*\n\n${usersResult.error || 'No users found.'}`,
+            {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback(t('btnBack', lang), `ptero_view_${panelId}`)]
+                ])
+            }
+        );
+        return;
+    }
+
+    let text = lang === 'ms'
+        ? `🚀 *Buat Server — ${panel.name}*\n\n👤 *Pilih user untuk server ini:*\n\n`
+        : `🚀 *Create Server — ${panel.name}*\n\n👤 *Select user for this server:*\n\n`;
+
+    const buttons = [];
+    for (const u of usersResult.users) {
+        const attr = u.attributes;
+        text += `👤 *${attr.first_name} ${attr.last_name}* — ${attr.email}\n`;
+        buttons.push([Markup.button.callback(
+            `👤 ${attr.first_name} ${attr.last_name} (${attr.username})`,
+            `ptero_createuser_${panelId}_${attr.id}`
+        )]);
+    }
+
+    buttons.push([Markup.button.callback(t('btnBack', lang), `ptero_view_${panelId}`)]);
+
+    await safeEditMessage(ctx, text, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(buttons)
+    });
+}
+
+// ─── Create Server (Step 2: Create with selected user) ────────
+async function handleCreateServerWithUser(ctx, panelId, pteroUserId) {
     const userId = ctx.from.id;
     if (!await isOwner(userId)) {
         await ctx.answerCbQuery('❌ Owner only');
@@ -188,15 +247,16 @@ async function handleCreateServer(ctx, panelId) {
     await ctx.answerCbQuery('⏳ Creating server...');
     await ctx.reply(
         lang === 'ms'
-            ? `⏳ Sedang membuat server di *${panel.name}*...\nNest: 5 | Egg: 15 | Startup: npm start`
-            : `⏳ Creating server on *${panel.name}*...\nNest: 5 | Egg: 15 | Startup: npm start`,
+            ? `⏳ Sedang membuat server di *${panel.name}*...\n👤 User ID: ${pteroUserId}\nNest: 5 | Egg: 15 | Startup: npm start`
+            : `⏳ Creating server on *${panel.name}*...\n👤 User ID: ${pteroUserId}\nNest: 5 | Egg: 15 | Startup: npm start`,
         { parse_mode: 'Markdown' }
     );
 
     const result = await ptero.createServer(panel, {
         name: `CexiBot-${panel.name}`,
         egg: 15,
-        startup: 'npm start'
+        startup: 'npm start',
+        userId: parseInt(pteroUserId)
     });
 
     if (result.success) {
@@ -208,8 +268,8 @@ async function handleCreateServer(ctx, panelId) {
 
         await ctx.reply(
             lang === 'ms'
-                ? `✅ *Server Berjaya Dibuat!*\n\n🖥️ Panel: ${panel.name}\n📋 Server ID: ${result.serverId}\n🔑 Identifier: ${result.identifier}\n📦 Name: ${result.name}\n\n_Tekan Start untuk mulakan server._`
-                : `✅ *Server Created Successfully!*\n\n🖥️ Panel: ${panel.name}\n📋 Server ID: ${result.serverId}\n🔑 Identifier: ${result.identifier}\n📦 Name: ${result.name}\n\n_Press Start to launch the server._`,
+                ? `✅ *Server Berjaya Dibuat!*\n\n🖥️ Panel: ${panel.name}\n📋 Server ID: ${result.serverId}\n🔑 Identifier: ${result.identifier}\n📦 Name: ${result.name}\n👤 User: ${pteroUserId}\n\n_Tekan Start untuk mulakan server._`
+                : `✅ *Server Created Successfully!*\n\n🖥️ Panel: ${panel.name}\n📋 Server ID: ${result.serverId}\n🔑 Identifier: ${result.identifier}\n📦 Name: ${result.name}\n👤 User: ${pteroUserId}\n\n_Press Start to launch the server._`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -464,6 +524,7 @@ module.exports = {
     handleViewPanel,
     handleServerPower,
     handleCreateServer,
+    handleCreateServerWithUser,
     handleSetPrimary,
     handleDeletePanel,
     handleConfirmDeletePanel,

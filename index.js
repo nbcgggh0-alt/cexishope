@@ -8,7 +8,7 @@ const { handleAdminPanel, handleAdminOrders, handleVerifyOrder, handleRejectOrde
 const { handleCategoryManagement, handleCategoryDetail, handleDeleteCategory, handleEditCategoryName, handleEditCategoryIcon, processCategoryEdit } = require('./handlers/categoryManagement');
 const { handleProductManagementMenu, handleProductList, handleProductDetail, handleToggleProduct, handleDeleteProductConfirm, handleDeleteProduct, handleEditProductField, processProductEdit, handleLowStockProducts } = require('./handlers/productManagementImproved');
 const { handleOwnerPanel, handleOwnerAdmins, handleSetOwner, handleAddAdmin, handleRemoveAdmin, handleOwnerSettings, handleOwnerBackup, handleOwnerAnalytics, handleOwnerAdvanced } = require('./handlers/owner');
-const { handleServerPanel, handleViewPanel, handleServerPower, handleCreateServer, handleSetPrimary, handleDeletePanel, handleConfirmDeletePanel, handleHealthCheck, handleAddPanelStart } = require('./handlers/serverPanel');
+const { handleServerPanel, handleViewPanel, handleServerPower, handleCreateServer, handleCreateServerWithUser, handleSetPrimary, handleDeletePanel, handleConfirmDeletePanel, handleHealthCheck, handleAddPanelStart } = require('./handlers/serverPanel');
 const { handleSupport, handleJoinSession, handleLeaveSession, handleCloseSession, handleEndSession, handleSessionMessage, handleListSessions, handleSetActiveSession, handleSendToSession } = require('./handlers/session');
 const { handleBanUser, handleUnbanUser, handleTagUser, handleUntagUser, handleListBannedUsers, checkIfBanned } = require('./handlers/userManagement');
 const { handleSearchOrders, handleFilterOrders, handleFilterCallback } = require('./handlers/orderSearch');
@@ -347,6 +347,77 @@ bot.command('deletefaq', safeHandler(async (ctx) => {
 // Admin & Owner shortcuts
 bot.command('admin', safeHandler(handleAdminPanel));
 bot.command('owner', safeHandler(handleOwnerPanel));
+
+// Quick add panel: /upserver domain,ptla,ptlc
+bot.command('upserver', safeHandler(async (ctx) => {
+  const userId = ctx.from.id;
+  const { isOwner } = require('./handlers/owner');
+  if (!await isOwner(userId)) return;
+
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+  const args = ctx.message.text.replace(/^\/upserver\s*/, '').trim();
+
+  if (!args) {
+    await ctx.reply(
+      lang === 'ms'
+        ? '❌ Format: `/upserver domain,ptla_key,ptlc_key`'
+        : '❌ Format: `/upserver domain,ptla_key,ptlc_key`',
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+
+  const parts = args.split(',').map(s => s.trim());
+  if (parts.length < 3) {
+    await ctx.reply(
+      lang === 'ms'
+        ? '❌ Perlu 3 bahagian dipisah koma:\n`/upserver domain,ptla_key,ptlc_key`'
+        : '❌ Need 3 comma-separated parts:\n`/upserver domain,ptla_key,ptlc_key`',
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+
+  let [domain, apiKeyApp, apiKeyClient] = parts;
+  if (!domain.startsWith('http')) domain = 'https://' + domain;
+  domain = domain.replace(/\/$/, '');
+
+  await ctx.reply(lang === 'ms' ? '⏳ Menguji sambungan...' : '⏳ Testing connection...');
+
+  const ptero = require('./utils/pteroAPI');
+  const testPanel = { domain, apiKeyApp, apiKeyClient };
+  const testResult = await ptero.testConnection(testPanel);
+
+  const panels = await db.getPteroPanels();
+  const panelNum = panels.length + 1;
+  const isFirst = panels.length === 0;
+
+  await db.addPteroPanel({
+    name: `Panel ${panelNum}`,
+    domain,
+    apiKeyApp,
+    apiKeyClient,
+    status: testResult.success ? 'standby' : 'offline',
+    isPrimary: isFirst
+  });
+
+  if (testResult.success) {
+    await ctx.reply(
+      lang === 'ms'
+        ? `✅ *Panel ${panelNum} Ditambah!*\n\n🌐 ${domain}\n🟢 Sambungan OK\n${isFirst ? '⭐ Primary\n' : ''}`
+        : `✅ *Panel ${panelNum} Added!*\n\n🌐 ${domain}\n🟢 Connection OK\n${isFirst ? '⭐ Primary\n' : ''}`,
+      { parse_mode: 'Markdown' }
+    );
+  } else {
+    await ctx.reply(
+      lang === 'ms'
+        ? `⚠️ *Panel ${panelNum} Ditambah (Sambungan Gagal)*\n\n🌐 ${domain}\n🔴 Error: ${testResult.error}`
+        : `⚠️ *Panel ${panelNum} Added (Connection Failed)*\n\n🌐 ${domain}\n🔴 Error: ${testResult.error}`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+}));
 
 // Currency & Feedback
 bot.command('currency', safeHandler(handleSetCurrency));
@@ -1132,6 +1203,9 @@ bot.action(/^ptero_power_(\d+)_(start|stop|restart)$/, safeHandler(async (ctx) =
 }));
 bot.action(/^ptero_create_(\d+)$/, safeHandler(async (ctx) => {
   await handleCreateServer(ctx, ctx.match[1]);
+}));
+bot.action(/^ptero_createuser_(\d+)_(\d+)$/, safeHandler(async (ctx) => {
+  await handleCreateServerWithUser(ctx, ctx.match[1], ctx.match[2]);
 }));
 bot.action(/^ptero_primary_(\d+)$/, safeHandler(async (ctx) => {
   await handleSetPrimary(ctx, ctx.match[1]);
