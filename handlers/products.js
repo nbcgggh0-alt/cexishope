@@ -376,8 +376,6 @@ async function handleConfirmBuy(ctx, productId) {
   }
 
 
-  const qrPath = settings.qrPayment?.path;
-
   let voucherInfo = '';
   const finalAmountDisplay = await getPriceDisplay(finalAmount, userCurrency);
 
@@ -392,12 +390,13 @@ async function handleConfirmBuy(ctx, productId) {
   }
 
   const orderMessage = lang === 'ms'
-    ? `✅ *Order Dibuat!*\n\n🆔 ID Order: \`${orderId}\`\n📦 Produk: ${product.name.ms}\n💰 Harga: ${finalAmountDisplay}${voucherInfo}\n\n*Sila lengkapkan pembayaran dan muat naik bukti.*`
-    : `✅ *Order Created!*\n\n🆔 Order ID: \`${orderId}\`\n📦 Product: ${product.name.en || product.name.ms}\n💰 Price: ${finalAmountDisplay}${voucherInfo}\n\n*Please complete payment and upload proof.*`;
+    ? `✅ *Order Dibuat!*\n\n🆔 ID Order: \`${orderId}\`\n📦 Produk: ${product.name.ms}\n💰 Harga: ${finalAmountDisplay}${voucherInfo}\n\n*Sila pilih kaedah pembayaran:*`
+    : `✅ *Order Created!*\n\n🆔 Order ID: \`${orderId}\`\n📦 Product: ${product.name.en || product.name.ms}\n💰 Price: ${finalAmountDisplay}${voucherInfo}\n\n*Please select payment method:*`;
 
   const buttons = [
+    [Markup.button.callback('🇲🇾 Touch \'n Go / DuitNow (Malaysia)', `paymethod_tng_${orderId}`)],
+    [Markup.button.callback('🇮🇩 QRIS / DANA (Indonesia)', `paymethod_qris_${orderId}`)],
     [Markup.button.callback(lang === 'ms' ? '💬 Chat dengan Admin' : '💬 Chat with Admin', 'support')],
-    [Markup.button.callback(lang === 'ms' ? '📦 Lihat Order Saya' : '📦 View My Orders', 'my_orders')],
     [Markup.button.callback(t('btnHome', lang), 'main_menu')]
   ];
 
@@ -405,34 +404,6 @@ async function handleConfirmBuy(ctx, productId) {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard(buttons)
   });
-
-  try {
-    if (qrPath && await fs.access(qrPath).then(() => true).catch(() => false)) {
-      await ctx.replyWithPhoto(
-        { source: qrPath },
-        {
-          caption: t('paymentQR', lang),
-          parse_mode: 'Markdown'
-        }
-      );
-    } else {
-      const noQrMessage = lang === 'ms'
-        ? `⚠️ *Maklumat Pembayaran:*\n\nKod QR tidak tersedia pada masa ini.\nSila tekan butang "💬 Chat dengan Admin" di atas untuk mendapat maklumat pembayaran.\n\nAdmin akan berikan detail pembayaran kepada anda!`
-        : `⚠️ *Payment Information:*\n\nQR code not available at the moment.\nPlease click "💬 Chat with Admin" button above to get payment details.\n\nAdmin will provide you with payment information!`;
-
-      await ctx.reply(noQrMessage, {
-        parse_mode: 'Markdown'
-      });
-    }
-  } catch (error) {
-    const noQrMessage = lang === 'ms'
-      ? `⚠️ *Maklumat Pembayaran:*\n\nKod QR tidak tersedia pada masa ini.\nSila tekan butang "💬 Chat dengan Admin" di atas untuk mendapat maklumat pembayaran.\n\nAdmin akan berikan detail pembayaran kepada anda!`
-      : `⚠️ *Payment Information:*\n\nQR code not available at the moment.\nPlease click "💬 Chat with Admin" button above to get payment details.\n\nAdmin will provide you with payment information!`;
-
-    await ctx.reply(noQrMessage, {
-      parse_mode: 'Markdown'
-    });
-  }
 
   // Prompt for payment proof upload
   setAwaitingProof(userId, orderId);
@@ -577,10 +548,77 @@ async function notifyAdmins(ctx, orderId, product, userId, sessionToken) {
   }
 }
 
+async function handlePaymentMethodSelect(ctx, method, orderId) {
+  const userId = ctx.from.id;
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+
+  const order = await db.getTransaction(orderId);
+  if (!order || order.userId !== userId) {
+    await ctx.answerCbQuery(lang === 'ms' ? '❌ Order tidak dijumpai' : '❌ Order not found');
+    return;
+  }
+
+  // Save payment method to transaction
+  await db.updateTransaction(orderId, { paymentMethod: method });
+
+  // Define QR paths
+  const qrPaths = {
+    tng: path.join(__dirname, '..', 'qr', 'tng-qr.jpg'),
+    qris: path.join(__dirname, '..', 'qr', 'qris-qr.jpg')
+  };
+
+  const qrPath = qrPaths[method];
+  const methodName = method === 'tng' ? 'Touch \'n Go / DuitNow' : 'QRIS / DANA';
+  const methodFlag = method === 'tng' ? '🇲🇾' : '🇮🇩';
+
+  const caption = lang === 'ms'
+    ? `${methodFlag} *Pembayaran ${methodName}*\n\n🆔 Order: \`${orderId}\`\n💰 Jumlah: RM${order.price}\n\n📱 Sila scan QR di bawah untuk membuat pembayaran.\nSelepas bayar, hantar bukti pembayaran anda.`
+    : `${methodFlag} *${methodName} Payment*\n\n🆔 Order: \`${orderId}\`\n💰 Amount: RM${order.price}\n\n📱 Please scan the QR below to make payment.\nAfter paying, send your payment proof.`;
+
+  await ctx.answerCbQuery();
+
+  try {
+    if (await fs.access(qrPath).then(() => true).catch(() => false)) {
+      await ctx.replyWithPhoto(
+        { source: qrPath },
+        {
+          caption: caption,
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback(lang === 'ms' ? '📦 Lihat Order Saya' : '📦 View My Orders', 'my_orders')],
+            [Markup.button.callback(lang === 'ms' ? '💬 Chat dengan Admin' : '💬 Chat with Admin', 'support')],
+            [Markup.button.callback(t('btnHome', lang), 'main_menu')]
+          ])
+        }
+      );
+    } else {
+      const noQrMsg = lang === 'ms'
+        ? `⚠️ *QR ${methodName} belum tersedia.*\n\nSila hubungi admin untuk maklumat pembayaran.`
+        : `⚠️ *${methodName} QR not available yet.*\n\nPlease contact admin for payment details.`;
+
+      await ctx.reply(noQrMsg, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback(lang === 'ms' ? '💬 Chat dengan Admin' : '💬 Chat with Admin', 'support')],
+          [Markup.button.callback(t('btnHome', lang), 'main_menu')]
+        ])
+      });
+    }
+  } catch (error) {
+    console.error('Error showing payment QR:', error.message);
+    await ctx.reply(
+      lang === 'ms' ? '⚠️ Ralat memaparkan QR. Sila hubungi admin.' : '⚠️ Error showing QR. Please contact admin.',
+      { parse_mode: 'Markdown' }
+    );
+  }
+}
+
 module.exports = {
   handleBuyProducts,
   handleCategory,
   handleProductView,
   handleBuyProduct,
-  handleConfirmBuy
+  handleConfirmBuy,
+  handlePaymentMethodSelect
 };

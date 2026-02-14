@@ -1,6 +1,6 @@
 const { Telegraf, Markup } = require('telegraf');
 const { handleStart, handleMainMenu, handleSettingsMenu, handleLanguageToggle, handleLanguageSelect } = require('./handlers/start');
-const { handleBuyProducts, handleCategory, handleProductView, handleBuyProduct, handleConfirmBuy } = require('./handlers/products');
+const { handleBuyProducts, handleCategory, handleProductView, handleBuyProduct, handleConfirmBuy, handlePaymentMethodSelect } = require('./handlers/products');
 const { handleSendPayment, handlePaymentSelection, handleViewPendingOrders } = require('./handlers/payment');
 const { handleMyOrders, handleMyItems } = require('./handlers/orders');
 const { handleCreateVoucher, handleRedeemVoucher, handleListVouchers, handleToggleVoucher, handleCheckVoucher } = require('./handlers/voucher');
@@ -1600,6 +1600,12 @@ bot.action(/^buy_(.+)$/, safeHandler(async (ctx) => {
 bot.action(/^confirmbuy_(.+)$/, safeHandler(async (ctx) => {
   const productId = ctx.match[1];
   await handleConfirmBuy(ctx, productId);
+}));
+
+bot.action(/^paymethod_(tng|qris)_(.+)$/, safeHandler(async (ctx) => {
+  const method = ctx.match[1];
+  const orderId = ctx.match[2];
+  await handlePaymentMethodSelect(ctx, method, orderId);
 }));
 
 bot.action(/^uploadproof_(.+)$/, safeHandler(async (ctx) => {
