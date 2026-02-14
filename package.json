@@ -1,0 +1,34 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "setup": "node setup.js",
+    "test": "jest --verbose"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "CexiStore Telegram Bot with Web Panel",
+  "engines": {
+    "node": ">=18.x",
+    "npm": ">=9.x"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "axios": "^1.13.5",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.1.0",
+    "fs-extra": "^11.3.2",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "pdfkit": "^0.17.2",
+    "telegraf": "^4.16.3",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

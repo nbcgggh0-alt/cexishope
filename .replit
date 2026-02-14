@@ -1,0 +1,54 @@
+modules = ["nodejs-20", "python-3.11"]
+[agent]
+expertMode = true
+integrations = ["dropbox:1.0.0"]
+
+[nix]
+channel = "stable-25_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Bot"
+
+[[workflows.workflow]]
+name = "Bot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index.js"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 32843
+externalPort = 3001
+
+[[ports]]
+localPort = 43201
+externalPort = 3003
+
+[[ports]]
+localPort = 43711
+externalPort = 3000
+
+[[ports]]
+localPort = 44973
+externalPort = 3002
+
+[[ports]]
+localPort = 46835
+externalPort = 4200
