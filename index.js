@@ -1793,6 +1793,11 @@ bot.action(/^view_repeat_(.+)$/, safeHandler(async (ctx) => {
   await handleViewRepeat(ctx, repeatId);
 }));
 
+bot.command('note', safeHandler(async (ctx) => {
+  const { handleNoteCommand } = require('./handlers/admin');
+  await handleNoteCommand(ctx);
+}));
+
 bot.on('text', async (ctx) => {
   // Check for admin interactive flows (add product, add category, add stock, etc.)
   const adminFlowHandled = await processAdminFlowInput(ctx);

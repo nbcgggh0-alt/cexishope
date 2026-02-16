@@ -139,6 +139,11 @@ async function handleJoinSession(ctx, token) {
   profileMsg += `🗣️ Lang: ${lang.toUpperCase()}\n`;
   profileMsg += `📦 Total Orders: ${userOrders.length}\n`;
 
+  if (user.notes) {
+    profileMsg += `\n📝 *ADMIN NOTES:*\n_${user.notes}_\n`;
+  }
+
+
   if (lastOrder) {
     profileMsg += `🛒 *Last Order*\n`;
     profileMsg += `🆔 ${lastOrder.id} (${lastOrder.status})\n`;
