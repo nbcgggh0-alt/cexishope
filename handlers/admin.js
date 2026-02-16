@@ -445,39 +445,44 @@ async function handleVerifyOrder(ctx, orderId) {
     const settings = await db.getSettings();
     const channelId = settings.transaction_channel_id || process.env.TRANSACTION_CHANNEL_ID;
 
-    // Helper to escape Markdown special characters
-    const escapeMd = (str) => {
+    // Helper to escape HTML characters (More robust than Markdown)
+    const escapeHtml = (str) => {
       if (!str) return '';
-      return String(str).replace(/[_*`\[\]()~>#+\-=|{}.!]/g, '\\$&');
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     };
 
     if (channelId) {
       try {
         const dateStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
 
-        // Escape all dynamic fields to prevent "Bad Request"
-        const cleanUserId = escapeMd(order.userId);
-        const cleanProductId = escapeMd(order.productId);
-        const cleanProductName = escapeMd(order.productName?.ms || order.productName || 'Product');
-        const cleanPrice = escapeMd(order.price);
-        const cleanMethod = escapeMd(order.paymentMethod ? order.paymentMethod.toUpperCase() : 'QRIS');
+        // Escape all dynamic fields to prevent HTML injection/errors
+        const cleanUserId = escapeHtml(order.userId);
+        const cleanProductId = escapeHtml(order.productId);
+        const cleanProductName = escapeHtml(order.productName?.ms || order.productName || 'Product');
+        const cleanPrice = escapeHtml(order.price);
+        const cleanMethod = escapeHtml(order.paymentMethod ? order.paymentMethod.toUpperCase() : 'QRIS');
 
         const channelMsg =
-          `🔔 *TRANSAKSI SELESAI* 🔔
-*Testimoni Otomatis* | *Dibuat Bot* 📢
+          `🔔 <b>TRANSAKSI SELESAI</b> 🔔
+<b>Testimoni Otomatis</b> | <b>Dibuat Bot</b> 📢
 ━━━━━━━━━━━━━━━━━━
-🗓️ *TANGGAL* : ${dateStr}
-📝 *BUYER* : ${cleanUserId}
-🧾 *ID PRODUK* : \`${cleanProductId}\`
-🛍️ *NAMA PRODUK* : ${cleanProductName}
-♻️ *JUMLAH* : 1
-✅ *TOTAL* : RM ${cleanPrice}
-🏦 *METODE PEMBAYARAN* : ${cleanMethod}
+🗓️ <b>TANGGAL</b> : ${dateStr}
+📝 <b>BUYER</b> : ${cleanUserId}
+🧾 <b>ID PRODUK</b> : <code>${cleanProductId}</code>
+🛍️ <b>NAMA PRODUK</b> : ${cleanProductName}
+♻️ <b>JUMLAH</b> : 1
+✅ <b>TOTAL</b> : RM ${cleanPrice}
+🏦 <b>METODE PEMBAYARAN</b> : ${cleanMethod}
 ━━━━━━━━━━━━━━━━━━
-*TERIMAKASIH SUDAH BERBELANJA* 😊
+<b>TERIMAKASIH SUDAH BERBELANJA</b> 😊
 ━━━━━━━━━━━━━━━━━━
-*BUY MANUAL*: @colebrs
-*TESTIMONI*: @cexistore\\_testi
+<b>BUY MANUAL</b>: @colebrs
+<b>TESTIMONI</b>: @cexistore_testi
 ━━━━━━━━━━━━━━━━━━`;
 
         // Inline Button "🛒 ORDER SEKARANG" linking to the bot
@@ -485,7 +490,7 @@ async function handleVerifyOrder(ctx, orderId) {
           [Markup.button.url('🛒 ORDER SEKARANG', `https://t.me/${ctx.botInfo.username}`)]
         ]);
 
-        await ctx.telegram.sendMessage(channelId, channelMsg, { parse_mode: 'MarkdownV2', ...keyboard });
+        await ctx.telegram.sendMessage(channelId, channelMsg, { parse_mode: 'HTML', ...keyboard });
       } catch (e) {
         console.error('Failed to send channel notification:', e.message);
       }
