@@ -1953,7 +1953,43 @@ bot.catch(async (err, ctx) => {
 });
 
 bot.launch()
-  .then(() => {
+  .then(async () => {
+    // Check for pending restart
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const restartFile = path.join(__dirname, '.restart_pending');
+
+      if (fs.existsSync(restartFile)) {
+        const state = JSON.parse(fs.readFileSync(restartFile, 'utf8'));
+        // Ignore if older than 5 minutes
+        if (Date.now() - state.timestamp < 300000) {
+          try {
+            // Try to delete previous "Restarting..." message if possible, or just send a new one
+            // Here we edit the "Restarting..." message if we have the ID, otherwise send new
+            if (state.messageId) {
+              // Determine language (default to ms if unknown, but better to check user)
+              // Since we don't have user context easily here, we'll try to fetch user or just use bilingual
+              const user = await db.getUser(state.chatId); // Assuming chatId is userId for DM
+              const lang = user?.language || 'ms';
+              const text = lang === 'ms'
+                ? '✅ *Bot telah dimulakan semula!* \n\nSistem kini beroperasi seperti biasa.'
+                : '✅ *Bot has restarted successfully!* \n\nSystem is back online.';
+
+              await bot.telegram.editMessageText(state.chatId, state.messageId, null, text, { parse_mode: 'Markdown' });
+            } else {
+              await bot.telegram.sendMessage(state.chatId, '✅ *Bot is back online!*', { parse_mode: 'Markdown' });
+            }
+          } catch (e) {
+            console.error('Failed to send restart notification:', e.message);
+          }
+        }
+        fs.unlinkSync(restartFile);
+      }
+    } catch (e) {
+      console.error('Error handling restart file:', e.message);
+    }
+
     console.log('🚀 CexiStore Bot is running!');
     console.log('Bot username:', bot.botInfo.username);
     console.log('☁️ Data stored securely in Supabase Cloud');

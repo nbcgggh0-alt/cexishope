@@ -326,7 +326,20 @@ async function handleUpdateRestart(ctx) {
     const user = await db.getUser(userId);
     const lang = user?.language || 'ms';
 
-    await ctx.answerCbQuery(lang === 'ms' ? '🔄 Memulakan semula...' : '🔄 Restarting...');
+    const msg = await ctx.answerCbQuery(lang === 'ms' ? '🔄 Memulakan semula...' : '🔄 Restarting...');
+    // Write restart state to file
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        fs.writeFileSync(path.join(__dirname, '../.restart_pending'), JSON.stringify({
+            chatId: ctx.chat.id,
+            messageId: msg.message_id, // We need to capture the message object first
+            timestamp: Date.now()
+        }));
+    } catch (e) {
+        console.error('Failed to save restart state:', e);
+    }
+
     await ctx.editMessageText(
         lang === 'ms'
             ? '🔄 *Bot sedang dimulakan semula...*\n\n⏳ Sila tunggu beberapa saat.'
