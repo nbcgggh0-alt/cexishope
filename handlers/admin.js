@@ -454,19 +454,24 @@ async function handleVerifyOrder(ctx, orderId) {
 ━━━━━━━━━━━━━━━━━━
 🗓️𝐓𝐀𝐍𝐆𝐆𝐀𝐋 : ${dateStr}
 📝𝐁𝐔𝐘𝐄𝐑 : ${order.userId}
-🧾𝐈𝐃 𝐏𝐑𝐎𝐃𝐔𝐊 : ${order.productId}
+🧾𝐈𝐃 𝐏𝐑𝐎𝐃𝐔𝐊 : \`${order.productId}\`
 🛍️𝐍𝐀𝐌𝐀 𝐏𝐑𝐎𝐃𝐔𝐊 : ${order.productName?.ms || order.productName || 'Product'}
 ♻️𝐉𝐔𝐌𝐋𝐀𝐇 : 1
 ✅𝐓𝐎𝐓𝐀𝐋 : RM ${order.price}
-🏦𝐌𝐄𝐓𝐎𝐃𝐄 𝐏𝐄𝐌𝐁𝐀𝐘𝐀𝐑𝐀𝐍 : ${order.paymentMethod || 'QRIS/Transfer'}
+🏦𝐌𝐄𝐓𝐎𝐃𝐄 𝐏𝐄𝐌𝐁𝐀𝐘𝐀𝐑𝐀𝐍 : ${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'QRIS'}
 ━━━━━━━━━━━━━━━━━━
 𝗧𝗘𝗥𝗜𝗠𝗔𝗞𝗔𝗦𝗜𝗛 𝗦𝗨𝗗𝗔𝗛 𝗕𝗘𝗥𝗕𝗘𝗟𝗔𝗡𝗝𝗔😊
 ━━━━━━━━━━━━━━━━━━
-𝗕𝗨𝗬 𝗠𝗔𝗡𝗨𝗔𝗟: https://t.me/${ctx.botInfo.username}
-𝗧𝗘𝗦𝗧𝗜𝗠𝗢𝗡𝗜: ${channelId.replace('-100', 'https://t.me/c/')}
+𝗕𝗨𝗬 𝗠𝗔𝗡𝗨𝗔𝗟: @cexistore_bot
+𝗧𝗘𝗦𝗧𝗜𝗠𝗢𝗡𝗜: @colebrs
 ━━━━━━━━━━━━━━━━━━`;
 
-        await ctx.telegram.sendMessage(channelId, channelMsg);
+        // Inline Button "🛒 ORDER SEKARANG" linking to the bot
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.url('🛒 ORDER SEKARANG', `https://t.me/${ctx.botInfo.username}`)]
+        ]);
+
+        await ctx.telegram.sendMessage(channelId, channelMsg, { parse_mode: 'Markdown', ...keyboard });
       } catch (e) {
         console.error('Failed to send channel notification:', e.message);
       }
