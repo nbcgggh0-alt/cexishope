@@ -605,6 +605,37 @@ async function handleSendToSession(ctx, token, message) {
   }
 }
 
+async function handleRating(ctx, token, rating) {
+  const userId = ctx.from.id;
+  const session = await db.getSession(token);
+
+  if (!session || session.userId !== userId) {
+    await ctx.answerCbQuery('Invalid session');
+    return;
+  }
+
+  // Save rating
+  session.rating = rating;
+  await db.saveSession(session);
+
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+
+  const thankYouMsg = lang === 'ms'
+    ? `✅ Terima kasih atas rating ${rating} bintang!\n\nMaklum balas anda sangat dihargai. 🙏`
+    : `✅ Thank you for your ${rating} star rating!\n\nYour feedback is greatly appreciated. 🙏`;
+
+  try {
+    // Edit the message to remove buttons
+    await ctx.editMessageText(thankYouMsg, { parse_mode: 'Markdown' });
+    await ctx.answerCbQuery('Rating received!');
+  } catch (e) {
+    // Fallback if edit fails
+    await ctx.answerCbQuery('Rating received!');
+    await ctx.reply(thankYouMsg, { parse_mode: 'Markdown' });
+  }
+}
+
 module.exports = {
   handleSupport,
   handleJoinSession,
@@ -614,5 +645,6 @@ module.exports = {
   handleSessionMessage,
   handleListSessions,
   handleSetActiveSession,
-  handleSendToSession
+  handleSendToSession,
+  handleRating
 };

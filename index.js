@@ -1949,6 +1949,13 @@ bot.action(/^quick_reply_(.+)$/, safeHandler(async (ctx) => {
   await ctx.answerCbQuery('Feature coming soon!');
 }));
 
+bot.action(/^rate_(.+)_(\d+)$/, safeHandler(async (ctx) => {
+  const token = ctx.match[1];
+  const rating = parseInt(ctx.match[2]);
+  const { handleRating } = require('./handlers/session');
+  await handleRating(ctx, token, rating);
+}));
+
 bot.on('audio', async (ctx) => {
   await handleSessionMessage(ctx);
 });
