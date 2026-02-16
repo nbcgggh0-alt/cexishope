@@ -357,224 +357,94 @@ async function handleSessionMessage(ctx) {
     }
   }
 
-  const messageText = ctx.message.text;
-  const messagePhoto = ctx.message.photo;
-  const messageDocument = ctx.message.document;
-  const messageAudio = ctx.message.audio;
-  const messageVoice = ctx.message.voice;
-  const messageVideo = ctx.message.video;
-  const messageLocation = ctx.message.location;
+  // Check if message is a command (starts with /) - ignore commands handled by other handlers
+  if (ctx.message.text && ctx.message.text.startsWith('/')) {
+    return;
+  }
 
+  // 1. ADMIN REPLYING TO USER
   if (adminSession) {
     const messageData = {
       from: 'admin',
+      type: 'unknown', // Detailed type will be inferred or we can just store 'copy'
       timestamp: new Date().toISOString()
     };
 
-    if (messageText) {
-      messageData.text = messageText;
+    // Attempt to store basic info (text/caption) for transcript
+    if (ctx.message.text) {
+      messageData.text = ctx.message.text;
       messageData.type = 'text';
-    } else if (messagePhoto) {
-      messageData.photo = messagePhoto[messagePhoto.length - 1].file_id;
-      messageData.type = 'photo';
+    } else {
+      messageData.type = 'media';
       messageData.caption = ctx.message.caption || '';
-    } else if (messageDocument) {
-      messageData.document = messageDocument.file_id;
-      messageData.fileName = messageDocument.file_name;
-      messageData.mimeType = messageDocument.mime_type;
-      messageData.type = 'document';
-      messageData.caption = ctx.message.caption || '';
-    } else if (messageAudio) {
-      messageData.audio = messageAudio.file_id;
-      messageData.duration = messageAudio.duration;
-      messageData.type = 'audio';
-      messageData.caption = ctx.message.caption || '';
-    } else if (messageVoice) {
-      messageData.voice = messageVoice.file_id;
-      messageData.duration = messageVoice.duration;
-      messageData.type = 'voice';
-    } else if (messageVideo) {
-      messageData.video = messageVideo.file_id;
-      messageData.duration = messageVideo.duration;
-      messageData.type = 'video';
-      messageData.caption = ctx.message.caption || '';
-    } else if (messageLocation) {
-      messageData.location = {
-        latitude: messageLocation.latitude,
-        longitude: messageLocation.longitude
-      };
-      messageData.type = 'location';
     }
 
     await db.addSessionMessage(adminSession.token, messageData);
 
     try {
-      if (messageText) {
-        await ctx.telegram.sendMessage(
-          adminSession.userId,
-          `👨‍💼 Admin: ${messageText}`
-        );
-      } else if (messagePhoto) {
-        await ctx.telegram.sendPhoto(
-          adminSession.userId,
-          messagePhoto[messagePhoto.length - 1].file_id,
-          {
-            caption: `👨‍💼 Admin sent a photo${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-          }
-        );
-      } else if (messageDocument) {
-        await ctx.telegram.sendDocument(
-          adminSession.userId,
-          messageDocument.file_id,
-          {
-            caption: `👨‍💼 Admin sent a file${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-          }
-        );
-      } else if (messageAudio) {
-        await ctx.telegram.sendAudio(
-          adminSession.userId,
-          messageAudio.file_id,
-          {
-            caption: `👨‍💼 Admin sent an audio${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-          }
-        );
-      } else if (messageVoice) {
-        await ctx.telegram.sendVoice(
-          adminSession.userId,
-          messageVoice.file_id,
-          {
-            caption: `👨‍💼 Admin sent a voice message`
-          }
-        );
-      } else if (messageVideo) {
-        await ctx.telegram.sendVideo(
-          adminSession.userId,
-          messageVideo.file_id,
-          {
-            caption: `👨‍💼 Admin sent a video${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-          }
-        );
-      } else if (messageLocation) {
-        await ctx.telegram.sendLocation(
-          adminSession.userId,
-          messageLocation.latitude,
-          messageLocation.longitude
-        );
-        await ctx.telegram.sendMessage(
-          adminSession.userId,
-          `👨‍💼 Admin shared a location`
-        );
-      }
+      // Use copyMessage for robust media support (Stickers, functional features, etc.)
+      await ctx.copyMessage(adminSession.userId);
     } catch (error) {
-      console.error('Failed to forward message:', error.message);
+      console.error('Failed to copy message to user:', error.message);
+      await ctx.reply('❌ Failed to send message.');
     }
-  } else if (userSession) {
+  }
+
+  // 2. USER MESSAGING ADMIN
+  else if (userSession) {
     const messageData = {
       from: 'user',
+      type: 'unknown',
       timestamp: new Date().toISOString()
     };
 
-    if (messageText) {
-      messageData.text = messageText;
+    if (ctx.message.text) {
+      messageData.text = ctx.message.text;
       messageData.type = 'text';
-    } else if (messagePhoto) {
-      messageData.photo = messagePhoto[messagePhoto.length - 1].file_id;
-      messageData.type = 'photo';
+    } else {
+      messageData.type = 'media';
       messageData.caption = ctx.message.caption || '';
-    } else if (messageDocument) {
-      messageData.document = messageDocument.file_id;
-      messageData.fileName = messageDocument.file_name;
-      messageData.mimeType = messageDocument.mime_type;
-      messageData.type = 'document';
-      messageData.caption = ctx.message.caption || '';
-    } else if (messageAudio) {
-      messageData.audio = messageAudio.file_id;
-      messageData.duration = messageAudio.duration;
-      messageData.type = 'audio';
-      messageData.caption = ctx.message.caption || '';
-    } else if (messageVoice) {
-      messageData.voice = messageVoice.file_id;
-      messageData.duration = messageVoice.duration;
-      messageData.type = 'voice';
-    } else if (messageVideo) {
-      messageData.video = messageVideo.file_id;
-      messageData.duration = messageVideo.duration;
-      messageData.type = 'video';
-      messageData.caption = ctx.message.caption || '';
-    } else if (messageLocation) {
-      messageData.location = {
-        latitude: messageLocation.latitude,
-        longitude: messageLocation.longitude
-      };
-      messageData.type = 'location';
     }
 
     await db.addSessionMessage(userSession.token, messageData);
 
     if (userSession.adminId) {
       try {
-        if (messageText) {
-          await ctx.telegram.sendMessage(
-            userSession.adminId,
-            `👤 User ${userId}: ${messageText}`
-          );
-        } else if (messagePhoto) {
-          await ctx.telegram.sendPhoto(
-            userSession.adminId,
-            messagePhoto[messagePhoto.length - 1].file_id,
-            {
-              caption: `👤 User ${userId} sent a photo${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-            }
-          );
-        } else if (messageDocument) {
-          await ctx.telegram.sendDocument(
-            userSession.adminId,
-            messageDocument.file_id,
-            {
-              caption: `👤 User ${userId} sent a file${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-            }
-          );
-        } else if (messageAudio) {
-          await ctx.telegram.sendAudio(
-            userSession.adminId,
-            messageAudio.file_id,
-            {
-              caption: `👤 User ${userId} sent an audio${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-            }
-          );
-        } else if (messageVoice) {
-          await ctx.telegram.sendVoice(
-            userSession.adminId,
-            messageVoice.file_id,
-            {
-              caption: `👤 User ${userId} sent a voice message`
-            }
-          );
-        } else if (messageVideo) {
-          await ctx.telegram.sendVideo(
-            userSession.adminId,
-            messageVideo.file_id,
-            {
-              caption: `👤 User ${userId} sent a video${ctx.message.caption ? ':\n' + ctx.message.caption : ''}`
-            }
-          );
-        } else if (messageLocation) {
-          await ctx.telegram.sendLocation(
-            userSession.adminId,
-            messageLocation.latitude,
-            messageLocation.longitude
-          );
-          await ctx.telegram.sendMessage(
-            userSession.adminId,
-            `👤 User ${userId} shared a location`
-          );
-        }
+        // Forward to Admin
+        await ctx.copyMessage(userSession.adminId);
       } catch (error) {
-        console.error('Failed to forward message:', error.message);
+        console.error('Failed to copy message to admin:', error.message);
       }
     } else {
+      // WAITING FOR ADMIN (Debounce Logic)
       try {
-        await ctx.reply('⏳ Your message has been saved. Waiting for an admin to join the session...');
+        // Check sending history to prevent spam
+        // We look for the last 'system_waiting' message in the session
+        const messages = userSession.messages || [];
+        const lastWaitingMsg = [...messages].reverse().find(m => m.type === 'system_waiting');
+
+        const now = Date.now();
+        const COOLDOWN = 30 * 60 * 1000; // 30 Minutes
+
+        let shouldSend = true;
+        if (lastWaitingMsg) {
+          const lastTime = new Date(lastWaitingMsg.timestamp).getTime();
+          if (now - lastTime < COOLDOWN) {
+            shouldSend = false;
+          }
+        }
+
+        if (shouldSend) {
+          await ctx.reply('⏳ Your message has been saved. Waiting for an admin to join the session...');
+
+          // Log this system message so we can debounce next time
+          await db.addSessionMessage(userSession.token, {
+            from: 'system',
+            type: 'system_waiting',
+            text: 'Waiting for admin prompt sent',
+            timestamp: new Date().toISOString()
+          });
+        }
       } catch (error) {
         console.error('Failed to send waiting message:', error.message);
       }
