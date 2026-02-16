@@ -441,7 +441,11 @@ async function handleVerifyOrder(ctx, orderId) {
     }
 
     // New: Send Notification to Channel
-    if (process.env.TRANSACTION_CHANNEL_ID) {
+    // Fetch setting from DB first, then fallback to env
+    const settings = await db.getSettings();
+    const channelId = settings.transaction_channel_id || process.env.TRANSACTION_CHANNEL_ID;
+
+    if (channelId) {
       try {
         const dateStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
         const channelMsg =
@@ -459,10 +463,10 @@ async function handleVerifyOrder(ctx, orderId) {
 𝗧𝗘𝗥𝗜𝗠𝗔𝗞𝗔𝗦𝗜𝗛 𝗦𝗨𝗗𝗔𝗛 𝗕𝗘𝗥𝗕𝗘𝗟𝗔𝗡𝗝𝗔😊
 ━━━━━━━━━━━━━━━━━━
 𝗕𝗨𝗬 𝗠𝗔𝗡𝗨𝗔𝗟: https://t.me/${ctx.botInfo.username}
-𝗧𝗘𝗦𝗧𝗜𝗠𝗢𝗡𝗜: ${process.env.TRANSACTION_CHANNEL_ID.replace('-100', 'https://t.me/c/')}
+𝗧𝗘𝗦𝗧𝗜𝗠𝗢𝗡𝗜: ${channelId.replace('-100', 'https://t.me/c/')}
 ━━━━━━━━━━━━━━━━━━`;
 
-        await ctx.telegram.sendMessage(process.env.TRANSACTION_CHANNEL_ID, channelMsg);
+        await ctx.telegram.sendMessage(channelId, channelMsg);
       } catch (e) {
         console.error('Failed to send channel notification:', e.message);
       }
