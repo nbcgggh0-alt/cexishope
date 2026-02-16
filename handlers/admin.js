@@ -445,25 +445,39 @@ async function handleVerifyOrder(ctx, orderId) {
     const settings = await db.getSettings();
     const channelId = settings.transaction_channel_id || process.env.TRANSACTION_CHANNEL_ID;
 
+    // Helper to escape Markdown special characters
+    const escapeMd = (str) => {
+      if (!str) return '';
+      return String(str).replace(/[_*`\[\]()~>#+\-=|{}.!]/g, '\\$&');
+    };
+
     if (channelId) {
       try {
         const dateStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
+
+        // Escape all dynamic fields to prevent "Bad Request"
+        const cleanUserId = escapeMd(order.userId);
+        const cleanProductId = escapeMd(order.productId);
+        const cleanProductName = escapeMd(order.productName?.ms || order.productName || 'Product');
+        const cleanPrice = escapeMd(order.price);
+        const cleanMethod = escapeMd(order.paymentMethod ? order.paymentMethod.toUpperCase() : 'QRIS');
+
         const channelMsg =
-          `🔔 𝗧𝗥𝗔𝗡𝗦𝗔𝗞𝗦𝗜 𝗦𝗘𝗟𝗘𝗦𝗔𝗜 🔔
-𝙏𝙚𝙨𝙩𝙞𝙢𝙤𝙣𝙞 𝙊𝙩𝙤𝙢𝙖𝙩𝙞𝙨 | 𝘿𝙞𝙗𝙪𝙖𝙩 𝘽𝙤𝙩📢
+          `🔔 *TRANSAKSI SELESAI* 🔔
+*Testimoni Otomatis* | *Dibuat Bot* 📢
 ━━━━━━━━━━━━━━━━━━
-🗓️𝐓𝐀𝐍𝐆𝐆𝐀𝐋 : ${dateStr}
-📝𝐁𝐔𝐘𝐄𝐑 : ${order.userId}
-🧾𝐈𝐃 𝐏𝐑𝐎𝐃𝐔𝐊 : \`${order.productId}\`
-🛍️𝐍𝐀𝐌𝐀 𝐏𝐑𝐎𝐃𝐔𝐊 : ${order.productName?.ms || order.productName || 'Product'}
-♻️𝐉𝐔𝐌𝐋𝐀𝐇 : 1
-✅𝐓𝐎𝐓𝐀𝐋 : RM ${order.price}
-🏦𝐌𝐄𝐓𝐎𝐃𝐄 𝐏𝐄𝐌𝐁𝐀𝐘𝐀𝐑𝐀𝐍 : ${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'QRIS'}
+🗓️ *TANGGAL* : ${dateStr}
+📝 *BUYER* : ${cleanUserId}
+🧾 *ID PRODUK* : \`${cleanProductId}\`
+🛍️ *NAMA PRODUK* : ${cleanProductName}
+♻️ *JUMLAH* : 1
+✅ *TOTAL* : RM ${cleanPrice}
+🏦 *METODE PEMBAYARAN* : ${cleanMethod}
 ━━━━━━━━━━━━━━━━━━
-𝗧𝗘𝗥𝗜𝗠𝗔𝗞𝗔𝗦𝗜𝗛 𝗦𝗨𝗗𝗔𝗛 𝗕𝗘𝗥𝗕𝗘𝗟𝗔𝗡𝗝𝗔😊
+*TERIMAKASIH SUDAH BERBELANJA* 😊
 ━━━━━━━━━━━━━━━━━━
-𝗕𝗨𝗬 𝗠𝗔𝗡𝗨𝗔𝗟: @colebrs
-𝗧𝗘𝗦𝗧𝗜𝗠𝗢𝗡𝗜: @cexistore_testi
+*BUY MANUAL*: @colebrs
+*TESTIMONI*: @cexistore\\_testi
 ━━━━━━━━━━━━━━━━━━`;
 
         // Inline Button "🛒 ORDER SEKARANG" linking to the bot
@@ -471,7 +485,7 @@ async function handleVerifyOrder(ctx, orderId) {
           [Markup.button.url('🛒 ORDER SEKARANG', `https://t.me/${ctx.botInfo.username}`)]
         ]);
 
-        await ctx.telegram.sendMessage(channelId, channelMsg, { parse_mode: 'Markdown', ...keyboard });
+        await ctx.telegram.sendMessage(channelId, channelMsg, { parse_mode: 'MarkdownV2', ...keyboard });
       } catch (e) {
         console.error('Failed to send channel notification:', e.message);
       }
