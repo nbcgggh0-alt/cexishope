@@ -43,6 +43,7 @@ These variables MUST be set in your Pterodactyl **"Variables"** tab or in a `.en
 | `SESSION_TIMEOUT` | Admin session timeout in ms (default 4 hours) | No | `14400000` |
 | `EXCHANGE_RATE_API_KEY` | API Key for currency conversion (optional) | No | `your_api_key` |
 | `NODE_ENV` | Set to `production` for better performance | No | `production` |
+| `TRANSACTION_CHANNEL_ID` | Channel ID for receipt notifications (start with -100) | No | `-100123456789` |
 
 ---
 
