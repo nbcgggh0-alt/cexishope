@@ -440,6 +440,34 @@ async function handleVerifyOrder(ctx, orderId) {
       console.error('Failed to notify customer:', error.message);
     }
 
+    // New: Send Notification to Channel
+    if (process.env.TRANSACTION_CHANNEL_ID) {
+      try {
+        const dateStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
+        const channelMsg =
+          `🔔 𝗧𝗥𝗔𝗡𝗦𝗔𝗞𝗦𝗜 𝗦𝗘𝗟𝗘𝗦𝗔𝗜 🔔
+𝙏𝙚𝙨𝙩𝙞𝙢𝙤𝙣𝙞 𝙊𝙩𝙤𝙢𝙖𝙩𝙞𝙨 | 𝘿𝙞𝙗𝙪𝙖𝙩 𝘽𝙤𝙩📢
+━━━━━━━━━━━━━━━━━━
+🗓️𝐓𝐀𝐍𝐆𝐆𝐀𝐋 : ${dateStr}
+📝𝐁𝐔𝐘𝐄𝐑 : ${order.userId}
+🧾𝐈𝐃 𝐏𝐑𝐎𝐃𝐔𝐊 : ${order.productId}
+🛍️𝐍𝐀𝐌𝐀 𝐏𝐑𝐎𝐃𝐔𝐊 : ${order.productName?.ms || order.productName || 'Product'}
+♻️𝐉𝐔𝐌𝐋𝐀𝐇 : 1
+✅𝐓𝐎𝐓𝐀𝐋 : RM ${order.price}
+🏦𝐌𝐄𝐓𝐎𝐃𝐄 𝐏𝐄𝐌𝐁𝐀𝐘𝐀𝐑𝐀𝐍 : ${order.paymentMethod || 'QRIS/Transfer'}
+━━━━━━━━━━━━━━━━━━
+𝗧𝗘𝗥𝗜𝗠𝗔𝗞𝗔𝗦𝗜𝗛 𝗦𝗨𝗗𝗔𝗛 𝗕𝗘𝗥𝗕𝗘𝗟𝗔𝗡𝗝𝗔😊
+━━━━━━━━━━━━━━━━━━
+𝗕𝗨𝗬 𝗠𝗔𝗡𝗨𝗔𝗟: https://t.me/${ctx.botInfo.username}
+𝗧𝗘𝗦𝗧𝗜𝗠𝗢𝗡𝗜: ${process.env.TRANSACTION_CHANNEL_ID.replace('-100', 'https://t.me/c/')}
+━━━━━━━━━━━━━━━━━━`;
+
+        await ctx.telegram.sendMessage(process.env.TRANSACTION_CHANNEL_ID, channelMsg);
+      } catch (e) {
+        console.error('Failed to send channel notification:', e.message);
+      }
+    }
+
     await notifyNextInQueue(ctx);
 
     // Remove buttons from admin message to prevent confusion

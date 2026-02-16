@@ -19,6 +19,9 @@ module.exports = {
   // Owner Telegram ID
   OWNER_ID: parseInt(process.env.OWNER_ID),
 
+  // Channel ID for Transaction Notifications (Optional)
+  TRANSACTION_CHANNEL_ID: process.env.TRANSACTION_CHANNEL_ID,
+
   store: {
     name: process.env.STORE_NAME || 'CexiStore Ultimate Pro',
     currency: process.env.STORE_CURRENCY || 'MYR',
