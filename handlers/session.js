@@ -195,6 +195,28 @@ async function handleEndSession(ctx, token) {
         : '✅ *Session Ended*\nThank you for contacting support. Feel free to contact us again if you have more questions.',
       { parse_mode: 'Markdown' }
     );
+    // Send Rating Prompt (only if admin was involved)
+    if (session.adminId) {
+      const ratingMsg = lang === 'ms'
+        ? '⭐ *Bagaimana perkhidmatan kami?*\n\nSila beri rating pengalaman anda:'
+        : '⭐ *How was our service?*\n\nPlease rate your experience:';
+
+      const ratingButtons = Markup.inlineKeyboard([
+        [
+          Markup.button.callback('⭐', `rate_${token}_1`),
+          Markup.button.callback('⭐⭐', `rate_${token}_2`),
+          Markup.button.callback('⭐⭐⭐', `rate_${token}_3`),
+          Markup.button.callback('⭐⭐⭐⭐', `rate_${token}_4`),
+          Markup.button.callback('⭐⭐⭐⭐⭐', `rate_${token}_5`)
+        ]
+      ]);
+
+      await ctx.telegram.sendMessage(
+        session.userId,
+        ratingMsg,
+        { parse_mode: 'Markdown', ...ratingButtons }
+      );
+    }
   } catch (e) {
     console.error('Failed to notify user on close:', e);
   }
