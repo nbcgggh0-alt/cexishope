@@ -73,69 +73,88 @@ async function handleJoinSession(ctx, token) {
   const { isAdmin } = require('./admin');
 
   if (!await isAdmin(userId)) {
-    await ctx.reply('Unauthorized');
+    await ctx.answerCbQuery('Unauthorized');
     return;
   }
 
   const session = await db.getSession(token);
 
   if (!session) {
-    await ctx.reply('Session not found');
+    await ctx.reply('❌ Session not found');
     return;
   }
 
   if (session.status !== 'active') {
-    await ctx.reply('Session is not active');
+    await ctx.reply('⚠️ This session is no longer active.');
     return;
   }
 
-  const adminSessions = await db.getActiveSessionsByAdminId(userId);
-
-  if (!session.adminId) {
-    session.adminId = userId;
+  // If already claimed by another admin
+  if (session.adminId && session.adminId !== userId) {
+    await ctx.reply(`⚠️ This session is already claimed by Admin ${session.adminId}`);
+    return;
   }
 
+  // Claim logic
+  // Update DB refetch to ensure we have fresh state if needed, but 'session' var is usually fine
+  session.adminId = userId;
   session.lastActiveAt = new Date().toISOString();
   await db.saveSession(session);
 
-  const queueManager = require('../utils/queueManager');
-  const transactions = await db.getTransactions();
-  const userOrders = transactions.filter(t =>
-    t.userId === session.userId &&
-    (t.status === 'pending' || t.status === 'awaiting_verification')
-  );
-
-  for (const order of userOrders) {
-    const queuePos = await queueManager.getQueuePosition(order.id);
-    if (queuePos && queuePos.status === 'waiting') {
-      await queueManager.startProcessing(order.id, userId);
+  // Set this as the ONLY active session for convenience (focus mode)
+  const adminSessions = await db.getActiveSessionsByAdminId(userId);
+  for (const s of adminSessions) {
+    if (s.token !== token) {
+      s.isActiveSession = false;
+      await db.saveSession(s);
     }
   }
+  // Re-fetch to update local obj
+  session.isActiveSession = true;
+  await db.saveSession(session);
 
-  const totalActiveSessions = adminSessions.length + 1;
-  let replyMessage = `✅ Joined session ${token}\n\nUser: ${session.userId}\nActive Sessions: ${totalActiveSessions}\n\n`;
-
-  if (totalActiveSessions > 1) {
-    replyMessage += `📋 Managing multiple sessions:\n`;
-    replyMessage += `• Use /sessions to view all active sessions\n`;
-    replyMessage += `• Use /active ${token} to set this as active session\n`;
-    replyMessage += `• Use /msg ${token} [message] to send to specific session\n`;
-    replyMessage += `• Use /leave ${token} to leave this session\n\n`;
-    replyMessage += `💡 Tip: Set active session to send messages directly`;
-  } else {
-    replyMessage += `Use /leave to exit session`;
-  }
-
-  await ctx.reply(replyMessage);
-
+  // 1. Notify User
   try {
     await ctx.telegram.sendMessage(
       session.userId,
-      '✅ Admin has joined your support session! You can now chat.'
+      '👨‍💼 *Support Admin Connected!*\n\nAn admin has joined the chat. You can now talk directly.',
+      { parse_mode: 'Markdown' }
     );
   } catch (error) {
     console.error('Failed to notify user:', error.message);
   }
+
+  // 2. Show Admin the "User Profile Card"
+  const user = await db.getUser(session.userId);
+  const transactions = await db.getTransactions();
+  const userOrders = transactions.filter(t => t.userId === session.userId);
+  const lastOrder = userOrders.length > 0 ? userOrders[userOrders.length - 1] : null;
+  const lang = user?.language || 'ms';
+
+  let profileMsg = `✅ *CONNECTED TO TICKET*\n`;
+  profileMsg += `🎫 Token: \`${token}\`\n\n`;
+
+  profileMsg += `👤 *User Profile*\n`;
+  profileMsg += `🆔 ID: \`${session.userId}\`\n`;
+  profileMsg += `🗣️ Lang: ${lang.toUpperCase()}\n`;
+  profileMsg += `📦 Total Orders: ${userOrders.length}\n`;
+
+  if (lastOrder) {
+    profileMsg += `🛒 *Last Order*\n`;
+    profileMsg += `🆔 ${lastOrder.id} (${lastOrder.status})\n`;
+    profileMsg += `📅 ${new Date(lastOrder.createdAt).toLocaleDateString()}\n`;
+  } else {
+    profileMsg += `🛒 *No orders yet*\n`;
+  }
+
+  profileMsg += `\n💬 *You are now chatting with this user.*`;
+
+  const controls = [
+    [Markup.button.callback('🛑 Close Ticket', `end_session_${token}`), Markup.button.callback('🔙 Dashboard', 'refresh_sessions')],
+    [Markup.button.callback('📝 Quick Reply', `quick_reply_${token}`)] // Placeholder for future feature
+  ];
+
+  await ctx.reply(profileMsg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(controls) });
 }
 
 async function handleEndSession(ctx, token) {
@@ -146,26 +165,73 @@ async function handleEndSession(ctx, token) {
     return;
   }
 
+  if (session.status === 'ended') {
+    await ctx.answerCbQuery('Session already ended');
+    return;
+  }
+
   session.status = 'ended';
   session.endedAt = new Date().toISOString();
   await db.saveSession(session);
 
-  const user = await db.getUser(ctx.from.id);
-  const lang = user?.language || 'ms';
+  // 1. Notify User
+  try {
+    const user = await db.getUser(session.userId);
+    const lang = user?.language || 'ms';
 
-  await safeEditMessage(ctx, t('sessionEnded', lang), {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback(t('btnHome', lang), 'main_menu')]
-    ])
-  });
+    // If triggered by admin (ctx.from.id != session.userId), send msg to user
+    // If triggered by user, send msg to user (edit)
+    // We'll just assume standard notification
 
-  if (session.adminId) {
+    await ctx.telegram.sendMessage(
+      session.userId,
+      lang === 'ms'
+        ? '✅ *Sesi Tamat*\nTerima kasih kerana menghubungi kami. Hubungi kami semula jika ada sebarang pertanyaan.'
+        : '✅ *Session Ended*\nThank you for contacting support. Feel free to contact us again if you have more questions.',
+      { parse_mode: 'Markdown' }
+    );
+  } catch (e) {
+    console.error('Failed to notify user on close:', e);
+  }
+
+  // 2. Generate Transcript for Admin (if there's an admin involved)
+  if (session.adminId || (ctx.from.id !== session.userId)) {
+    const adminToNotify = session.adminId || ctx.from.id; // Fallback to closer if no assigned admin
+
+    let transcript = `TRANSCRIPT FOR TICKET: ${token}\n`;
+    transcript += `User ID: ${session.userId}\n`;
+    transcript += `Started: ${session.createdAt}\n`;
+    transcript += `Ended: ${session.endedAt}\n`;
+    transcript += `----------------------------------------\n\n`;
+
+    session.messages.forEach(m => {
+      const time = new Date(m.timestamp).toLocaleString();
+      const sender = m.from === 'admin' ? 'ADMIN' : 'USER';
+      let content = '';
+      if (m.type === 'text') content = m.text;
+      else content = `[${m.type.toUpperCase()}]`;
+
+      transcript += `[${time}] ${sender}: ${content}\n`;
+    });
+
     try {
-      await ctx.telegram.sendMessage(session.adminId, `Session ${token} ended by user`);
-    } catch (error) {
-      console.error('Failed to notify admin:', error.message);
+      // Send file directly
+      await ctx.telegram.sendDocument(adminToNotify, {
+        source: Buffer.from(transcript, 'utf8'),
+        filename: `ticket_${token}.txt`
+      }, { caption: `✅ Ticket ${token} closed.` });
+    } catch (err) {
+      console.error('Failed to send transcript:', err);
     }
+  }
+
+  // If this was a callback query, answer it
+  if (ctx.callbackQuery) {
+    await ctx.answerCbQuery('Ticket closed.');
+    // Refresh list if called from dashboard
+    // We can't easily jump back to handleListSessions from here without passing ctx cleanly or just sending new msg
+    // Let's just suggest using /sessions
+    await ctx.reply('🔒 Ticket closed. Use /sessions to return to dashboard.');
   }
 }
 
@@ -525,29 +591,70 @@ async function handleListSessions(ctx) {
     return;
   }
 
-  const adminSessions = await db.getActiveSessionsByAdminId(userId);
+  // Fetch all sessions to separate them
+  const allSessions = await db.getSessions();
+  const activeSessions = allSessions.filter(s => s.status === 'active');
 
-  if (adminSessions.length === 0) {
-    await ctx.reply('❌ You are not in any active sessions');
-    return;
+  const mySessions = activeSessions.filter(s => s.adminId === userId);
+  const openSessions = activeSessions.filter(s => !s.adminId);
+  const otherSessions = activeSessions.filter(s => s.adminId && s.adminId !== userId);
+
+  let message = '🎫 *SUPPORT TICKET DASHBOARD*\n\n';
+
+  const buttons = [];
+
+  // 1. My Active Sessions
+  if (mySessions.length > 0) {
+    message += `👤 *YOUR ACTIVE TICKETS (${mySessions.length})*\n`;
+    for (const s of mySessions) {
+      const lastMsg = s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
+      const lastText = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
+      const time = new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      message += `• \`${s.token}\` (User ${s.userId}) - ${time}\n`;
+      message += `  └ _${lastText}_\n\n`;
+
+      buttons.push([Markup.button.callback(`🟢 Resume: ${s.token}`, `active_session_${s.token}`)]);
+    }
+  } else {
+    message += '👤 *YOUR ACTIVE TICKETS*\n_No active tickets._\n\n';
   }
 
-  let message = `📋 *Your Active Sessions (${adminSessions.length})*\n\n`;
+  // 2. Open Sessions (Waiting)
+  if (openSessions.length > 0) {
+    message += `🆕 *OPEN TICKETS (${openSessions.length})* - Waiting for support\n`;
+    for (const s of openSessions) {
+      const lastMsg = s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
+      const lastText = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
+      const waitingTime = Math.floor((Date.now() - new Date(s.createdAt).getTime()) / 60000); // minutes
 
-  for (const session of adminSessions) {
-    const isActive = session.isActiveSession ? '✅ ' : '';
-    message += `${isActive}Token: \`${session.token}\`\n`;
-    message += `User: ${session.userId}\n`;
-    message += `Messages: ${session.messages.length}\n`;
-    message += `Started: ${new Date(session.createdAt).toLocaleString()}\n\n`;
+      message += `• \`${s.token}\` (User ${s.userId}) - ${waitingTime}m ago\n`;
+      message += `  └ _${lastText}_\n\n`;
+
+      buttons.push([Markup.button.callback(`✋ Claim: ${s.token}`, `join_session_${s.token}`)]);
+    }
+  } else {
+    message += '🆕 *OPEN TICKETS*\n_No pending tickets._\n\n';
   }
 
-  message += `\n💡 *Commands:*\n`;
-  message += `• /active [token] - Set active session\n`;
-  message += `• /msg [token] [message] - Send to specific session\n`;
-  message += `• /leave [token] - Leave specific session`;
+  // 3. Other Admin Sessions
+  if (otherSessions.length > 0) {
+    message += `👨‍💼 *OTHER AGENTS (${otherSessions.length})*\n`;
+    message += `_Other admins are handling ${otherSessions.length} tickets._\n`;
+  }
 
-  await ctx.reply(message, { parse_mode: 'Markdown' });
+  buttons.push([Markup.button.callback('🔄 Refresh Dashboard', 'refresh_sessions')]);
+
+  try {
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
+    } else {
+      await ctx.reply(message, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
+    }
+  } catch (e) {
+    // Fallback if edit fails (e.g. same content)
+    if (!ctx.callbackQuery) await ctx.reply('Error updating dashboard');
+  }
 }
 
 async function handleSetActiveSession(ctx, token) {

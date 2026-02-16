@@ -1910,6 +1910,25 @@ bot.on('document', async (ctx) => {
   await handleSessionMessage(ctx);
 });
 
+// Session Callbacks (Ticket System)
+bot.action(/^active_session_(.+)$/, safeHandler(async (ctx) => {
+  await handleSetActiveSession(ctx, ctx.match[1]);
+}));
+
+bot.action(/^join_session_(.+)$/, safeHandler(async (ctx) => {
+  await handleJoinSession(ctx, ctx.match[1]);
+}));
+
+bot.action('refresh_sessions', safeHandler(handleListSessions));
+
+bot.action(/^end_session_(.+)$/, safeHandler(async (ctx) => {
+  await handleEndSession(ctx, ctx.match[1]);
+}));
+
+bot.action(/^quick_reply_(.+)$/, safeHandler(async (ctx) => {
+  await ctx.answerCbQuery('Feature coming soon!');
+}));
+
 bot.on('audio', async (ctx) => {
   await handleSessionMessage(ctx);
 });
