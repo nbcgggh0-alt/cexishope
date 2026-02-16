@@ -1038,6 +1038,57 @@ async function notifyNextInQueue(ctx) {
   }
 }
 
+async function handleNoteCommand(ctx) {
+  const userId = ctx.from.id;
+
+  if (!await isAdmin(userId)) {
+    return;
+  }
+
+  const args = ctx.message.text.split(' ');
+  let targetUserId;
+  let noteText;
+
+  if (ctx.message.reply_to_message) {
+    const text = ctx.message.reply_to_message.text || '';
+    const match = text.match(/User ID: (\d+)/i) || text.match(/User (\d+)/i) || text.match(/ID: `(\d+)`/);
+    if (match) {
+      targetUserId = match[1];
+    }
+    noteText = args.slice(1).join(' ');
+  } else {
+    if (args.length < 3) {
+      await ctx.reply('⚠️ Invalid format. Use:\n`/note [user_id] [text]`\nOR reply to a user message with `/note [text]`', { parse_mode: 'Markdown' });
+      return;
+    }
+    targetUserId = args[1];
+    noteText = args.slice(2).join(' ');
+  }
+
+  if (!targetUserId || !noteText) {
+    await ctx.reply('❌ Could not identify User ID or Note text.');
+    return;
+  }
+
+  try {
+    const user = await db.getUser(targetUserId);
+    if (!user) {
+      await ctx.reply('❌ User not found in database.');
+      return;
+    }
+
+    const newNote = `[${new Date().toLocaleDateString()} ${ctx.from.first_name}]: ${noteText}`;
+    const currentNotes = user.notes ? user.notes + '\n' + newNote : newNote;
+
+    await db.saveUsers([{ ...user, notes: currentNotes }]);
+    await ctx.reply(`✅ Note added for User \`${targetUserId}\`:\n"${noteText}"`, { parse_mode: 'Markdown' });
+
+  } catch (error) {
+    console.error('Failed to save note:', error);
+    await ctx.reply('❌ Failed to save note.');
+  }
+}
+
 module.exports = {
   isAdmin,
   handleAdminPanel,
