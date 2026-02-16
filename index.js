@@ -1798,6 +1798,21 @@ bot.command('note', safeHandler(async (ctx) => {
   await handleNoteCommand(ctx);
 }));
 
+bot.command('addsnippet', safeHandler(async (ctx) => {
+  const { handleAddSnippet } = require('./handlers/snippets');
+  await handleAddSnippet(ctx);
+}));
+
+bot.command('delsnippet', safeHandler(async (ctx) => {
+  const { handleDelSnippet } = require('./handlers/snippets');
+  await handleDelSnippet(ctx);
+}));
+
+bot.command('s', safeHandler(async (ctx) => {
+  const { handleSnippet } = require('./handlers/snippets');
+  await handleSnippet(ctx);
+}));
+
 bot.on('text', async (ctx) => {
   // Check for admin interactive flows (add product, add category, add stock, etc.)
   const adminFlowHandled = await processAdminFlowInput(ctx);

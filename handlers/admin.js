@@ -1053,5 +1053,6 @@ module.exports = {
   handleAllOrders,
   handleViewOrder,
   handleDeleteOrderConfirm,
-  handleDeleteOrder
+  handleDeleteOrder,
+  handleNoteCommand
 };
