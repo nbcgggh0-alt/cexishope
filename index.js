@@ -37,44 +37,6 @@ const {
 
 // ...
 
-// ... bot.action registrations ...
-
-bot.action('edit_system_settings', safeHandler(async (ctx) => {
-  await handleEditSystemSettings(ctx);
-}));
-
-bot.action('clear_admin_logs', safeHandler(async (ctx) => {
-  // Add confirmation step? For now direct action as logic is simple
-  await handleClearAdminLogs(ctx);
-}));
-
-bot.action('clean_old_backups', safeHandler(async (ctx) => {
-  await handleCleanBackups(ctx);
-}));
-
-// NEW IMPROVEMENTS
-const { handleBulkOperations, handleBulkActivateAll, handleBulkDeactivateAll, handleBulkPriceByCategory, handleBulkPriceCategorySelect, handleBulkStockByCategory, handleBulkStockCategorySelect, processBulkEdit, handleBulkDeleteInactive, handleBulkDeleteConfirm } = require('./handlers/productBulkOperations');
-const { handleProductSearch, processProductSearch, handleProductFilter, handleFilterCallback: handleProductFilterCallback } = require('./handlers/productSearch');
-const { handleCategorySort, handleCategorySortCallback, handleCategoryAnalytics, handleCategoryIconSelector, handleSetCategoryIcon } = require('./handlers/categoryAdvanced');
-const { handleOwnerDashboard, handleDetailedReport, handleTrendAnalysis } = require('./handlers/ownerDashboard');
-const { handleQuickActionsMenu, handleQuickVerify, handleQuickVerifyOrder, handleQuickRejectOrder, handleQuickVerifyAll, handleQuickStock, processQuickStock, handleQuickPrice, processQuickPrice } = require('./handlers/adminQuickActions');
-const { initializeStockAlerts, sendManualStockAlert } = require('./handlers/stockAlerts');
-const { handleProductStats, handleAllProductsStats } = require('./handlers/productStats');
-const { exportProductsCSV, exportTransactionsCSV, exportUsersCSV, exportSalesReport, handleExportMenu } = require('./handlers/exportReports');
-const { handlePermissionsManagement, handleAdminPermissionsEdit, handleTogglePermission, handleAdminActivityLog } = require('./handlers/adminPermissions');
-
-// NEWEST FEATURES (November 2025)
-const { handleProductOptions, handleAddOption, handleOptionDetail, handleToggleOptionRequired, handleDeleteOption, processOptionInput, handleOptionRequired } = require('./handlers/productOptions');
-const { handleScheduledProducts, handleScheduleProduct, processScheduleInput, handleCancelSchedule, checkScheduledProducts } = require('./handlers/scheduledPublishing');
-const { handleCategoryDiscounts, handleCategoryDiscountDetail, handleAddCategoryDiscount, processDiscountInput, handleRemoveCategoryDiscount, getDiscountedPrice } = require('./handlers/categoryDiscounts');
-const { handleProductReviews, requestReview, handleRatingSelect, processReviewComment, handleViewAllReviews } = require('./handlers/reviewRating');
-const { handleAdvancedOrderFilters, handleDateFilter, processCustomDateInput } = require('./handlers/advancedOrderFilter');
-const { handleQuickEditMenu, handleQuickEditAction, processQuickEditInput } = require('./handlers/quickEditProduct');
-const { handleProductImages, handleAddProductImage, processProductImage, handleViewProductImages, handleDeleteProductImage } = require('./handlers/productImageManagement');
-const { handleQueuePanel, handleViewWaitingQueue, handleViewProcessingQueue, handleQueueSettings, handleStartProcessing, handleSetPriority, handleMyQueueStatus, handleSetQueueMax, handleSetQueueTime } = require('./handlers/queue');
-const { handleAddProductStart, handleAddProductCategory, handleAddCategoryStart, handleAddStockStart, handleAddItemSingle, handleAddItemBulk, handleAdjustStockStart, handleDeliveryTypeSelect, processAdminFlowInput, getAdminFlow, clearAdminFlow, handleAddAdminStart, handleRemoveAdminStart, handleRemoveAdminConfirm, handleBanUserStart, handleUnbanUserStart, handleUnbanConfirm, handleTagUserStart } = require('./handlers/adminFlows');
-const { handleUpdate, handleUpdateRestart, handleCheckUpdate } = require('./handlers/autoUpdate');
-
 
 const db = require('./utils/database');
 const AutoUpdater = require('./utils/autoUpdater');
@@ -135,6 +97,47 @@ function safeHandler(handler) {
     }
   };
 }
+
+// ... bot.action registrations ...
+
+bot.action('edit_system_settings', safeHandler(async (ctx) => {
+  await handleEditSystemSettings(ctx);
+}));
+
+bot.action('clear_admin_logs', safeHandler(async (ctx) => {
+  // Add confirmation step? For now direct action as logic is simple
+  await handleClearAdminLogs(ctx);
+}));
+
+bot.action('clean_old_backups', safeHandler(async (ctx) => {
+  await handleCleanBackups(ctx);
+}));
+
+// NEW IMPROVEMENTS
+const { handleBulkOperations, handleBulkActivateAll, handleBulkDeactivateAll, handleBulkPriceByCategory, handleBulkPriceCategorySelect, handleBulkStockByCategory, handleBulkStockCategorySelect, processBulkEdit, handleBulkDeleteInactive, handleBulkDeleteConfirm } = require('./handlers/productBulkOperations');
+const { handleProductSearch, processProductSearch, handleProductFilter, handleFilterCallback: handleProductFilterCallback } = require('./handlers/productSearch');
+const { handleCategorySort, handleCategorySortCallback, handleCategoryAnalytics, handleCategoryIconSelector, handleSetCategoryIcon } = require('./handlers/categoryAdvanced');
+const { handleOwnerDashboard, handleDetailedReport, handleTrendAnalysis } = require('./handlers/ownerDashboard');
+const { handleQuickActionsMenu, handleQuickVerify, handleQuickVerifyOrder, handleQuickRejectOrder, handleQuickVerifyAll, handleQuickStock, processQuickStock, handleQuickPrice, processQuickPrice } = require('./handlers/adminQuickActions');
+const { initializeStockAlerts, sendManualStockAlert } = require('./handlers/stockAlerts');
+const { handleProductStats, handleAllProductsStats } = require('./handlers/productStats');
+const { exportProductsCSV, exportTransactionsCSV, exportUsersCSV, exportSalesReport, handleExportMenu } = require('./handlers/exportReports');
+const { handlePermissionsManagement, handleAdminPermissionsEdit, handleTogglePermission, handleAdminActivityLog } = require('./handlers/adminPermissions');
+
+// NEWEST FEATURES (November 2025)
+const { handleProductOptions, handleAddOption, handleOptionDetail, handleToggleOptionRequired, handleDeleteOption, processOptionInput, handleOptionRequired } = require('./handlers/productOptions');
+const { handleScheduledProducts, handleScheduleProduct, processScheduleInput, handleCancelSchedule, checkScheduledProducts } = require('./handlers/scheduledPublishing');
+const { handleCategoryDiscounts, handleCategoryDiscountDetail, handleAddCategoryDiscount, processDiscountInput, handleRemoveCategoryDiscount, getDiscountedPrice } = require('./handlers/categoryDiscounts');
+const { handleProductReviews, requestReview, handleRatingSelect, processReviewComment, handleViewAllReviews } = require('./handlers/reviewRating');
+const { handleAdvancedOrderFilters, handleDateFilter, processCustomDateInput } = require('./handlers/advancedOrderFilter');
+const { handleQuickEditMenu, handleQuickEditAction, processQuickEditInput } = require('./handlers/quickEditProduct');
+const { handleProductImages, handleAddProductImage, processProductImage, handleViewProductImages, handleDeleteProductImage } = require('./handlers/productImageManagement');
+const { handleQueuePanel, handleViewWaitingQueue, handleViewProcessingQueue, handleQueueSettings, handleStartProcessing, handleSetPriority, handleMyQueueStatus, handleSetQueueMax, handleSetQueueTime } = require('./handlers/queue');
+const { handleAddProductStart, handleAddProductCategory, handleAddCategoryStart, handleAddStockStart, handleAddItemSingle, handleAddItemBulk, handleAdjustStockStart, handleDeliveryTypeSelect, processAdminFlowInput, getAdminFlow, clearAdminFlow, handleAddAdminStart, handleRemoveAdminStart, handleRemoveAdminConfirm, handleBanUserStart, handleUnbanUserStart, handleUnbanConfirm, handleTagUserStart } = require('./handlers/adminFlows');
+const { handleUpdate, handleUpdateRestart, handleCheckUpdate } = require('./handlers/autoUpdate');
+
+
+
 
 // Middleware to check if user is banned
 bot.use(async (ctx, next) => {

@@ -1,26 +1,108 @@
 const { getDiscountedPrice } = require('./categoryDiscounts'); // Import helper
 
 async function handleBuyProducts(ctx) {
-  // ... existing code ...
+  const userId = ctx.from.id;
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+
+  const categories = await db.getCategories();
+
+  if (categories.length === 0) {
+    const message = lang === 'ms'
+      ? '❌ Tiada kategori produk ditemui.'
+      : '❌ No product categories found.';
+    await safeEditMessage(ctx, message, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback(t('btnBack', lang), 'main_menu')]
+      ])
+    });
+    return;
+  }
+
+  const buttons = [];
+  categories.forEach(cat => {
+    buttons.push([Markup.button.callback(cat.name, `cat_${cat.id}`)]);
+  });
+  buttons.push([Markup.button.callback(t('btnBack', lang), 'main_menu')]);
+
+  const message = lang === 'ms'
+    ? '📂 *Pilih Kategori Produk:*'
+    : '📂 *Select Product Category:*';
+
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard(buttons)
+  });
 }
 
-// ... existing handleCategory ... 
-// I will update handleCategory in a separate chunk to avoid too large context or confusion, 
-// strictly creating the import first + handleProductView logic.
+async function handleCategory(ctx, categoryId) {
+  const userId = ctx.from.id;
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+  const userCurrency = user?.currency || 'MYR';
 
-// Actually, let's just do the import at top and update handleProductView first.
-// But wait, replace_file_content is better with smaller chunks.
-// Let's add the import first.
-const { Markup } = require('telegraf');
-const db = require('../utils/database');
-const { t } = require('../utils/translations');
-const { generateOrderId, generateSessionToken, isSessionExpired } = require('../utils/helpers');
-const { safeEditMessage } = require('../utils/messageHelper');
-const { setAwaitingProof } = require('./paymentProof');
-const { getPriceDisplay, convertPrice, formatPrice } = require('../utils/currencyHelper');
-const fs = require('fs').promises;
-const path = require('path');
-const { escapeMarkdown } = require('../utils/security'); // Security Utils
+  const category = (await db.getCategories()).find(c => c.id === categoryId);
+  if (!category) {
+    await ctx.answerCbQuery('Category not found');
+    return;
+  }
+
+  const allProducts = await db.getProducts();
+  // Filter active products in this category
+  const products = allProducts.filter(p => p.categoryId === categoryId && p.active && p.stock > 0);
+
+  if (products.length === 0) {
+    const message = lang === 'ms'
+      ? `📂 Kategori: *${category.name}*\n\n❌ Tiada produk tersedia dalam kategori ini.`
+      : `📂 Category: *${category.name}*\n\n❌ No products available in this category.`;
+
+    await safeEditMessage(ctx, message, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback(t('btnBack', lang), 'buy_products')]
+      ])
+    });
+    return;
+  }
+
+  // Generate product list message
+  let message = lang === 'ms'
+    ? `📂 Kategori: *${category.name}*\n\nSilih pilih produk:\n\n`
+    : `📂 Category: *${category.name}*\n\nPlease select a product:\n\n`;
+
+  const buttons = [];
+
+  // Calculate discounts for display
+  const { getDiscountedPrice } = require('./categoryDiscounts');
+  const categories = await db.getCategories();
+
+  for (const product of products) {
+    const priceDisplay = await getPriceDisplay(product.price, userCurrency);
+    const discountedPrice = getDiscountedPrice(product, categories);
+
+    let priceLabel = priceDisplay;
+    if (discountedPrice < product.price) {
+      const discountedDisplay = await getPriceDisplay(discountedPrice, userCurrency);
+      priceLabel = `${discountedDisplay} 🔥`;
+    }
+
+    const safeName = escapeMarkdown(product.name[lang] || product.name['ms']);
+
+    // Add button: Product Name - Price
+    buttons.push([Markup.button.callback(
+      `${product.name[lang] || product.name['ms']} - ${priceLabel}`,
+      `prod_${product.id}`
+    )]);
+  }
+
+  buttons.push([Markup.button.callback(t('btnBack', lang), 'buy_products')]);
+
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard(buttons)
+  });
+}
 
 
 // ...
