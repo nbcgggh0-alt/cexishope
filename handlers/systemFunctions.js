@@ -7,6 +7,7 @@ const { safeEditMessage } = require('../utils/messageHelper');
 const config = require('../config');
 const { logAdminAction, getAdminLogs, clearAdminLogs } = require('../utils/adminLogger');
 const { isOwner } = require('./owner');
+const fetch = require('node-fetch');
 
 async function handleSystemPanel(ctx) {
   const userId = ctx.from.id;
@@ -930,43 +931,48 @@ module.exports = {
 };
 
 async function handleDetailedSalesReport(ctx) {
-  const userId = ctx.from.id;
-  if (!await isOwner(userId)) return;
+  try {
+    const userId = ctx.from.id;
+    if (!await isOwner(userId)) return;
 
-  const user = await db.getUser(userId);
-  const lang = user?.language || 'ms';
+    const user = await db.getUser(userId);
+    const lang = user?.language || 'ms';
 
-  const transactions = await db.getTransactions();
-  const completed = transactions.filter(t => t.status === 'completed');
+    const transactions = await db.getTransactions();
+    const completed = transactions.filter(t => t.status === 'completed');
 
-  // Group by product
-  const productStats = {};
-  completed.forEach(t => {
-    const prodName = t.productName?.ms || t.productName || 'Unknown';
-    if (!productStats[prodName]) {
-      productStats[prodName] = { count: 0, revenue: 0 };
-    }
-    productStats[prodName].count++;
-    productStats[prodName].revenue += (t.price || 0);
-  });
-
-  let report = lang === 'en'
-    ? `📊 *Detailed Sales Report*\n\n`
-    : `📊 *Laporan Jualan Terperinci*\n\n`;
-
-  const sortedProducts = Object.entries(productStats).sort((a, b) => b[1].revenue - a[1].revenue);
-
-  if (sortedProducts.length === 0) {
-    report += lang === 'en' ? 'No sales data available.' : 'Tiada data jualan.';
-  } else {
-    sortedProducts.forEach(([name, stats]) => {
-      report += `📦 *${name}*\n`;
-      report += `🛒 Sold: ${stats.count} | 💰 Rev: ${config.store.currency}${stats.revenue.toFixed(2)}\n\n`;
+    // Group by product
+    const productStats = {};
+    completed.forEach(t => {
+      const prodName = t.productName?.ms || t.productName || 'Unknown';
+      if (!productStats[prodName]) {
+        productStats[prodName] = { count: 0, revenue: 0 };
+      }
+      productStats[prodName].count++;
+      productStats[prodName].revenue += (t.price || 0);
     });
-  }
 
-  await ctx.answerCbQuery();
-  await ctx.reply(report, { parse_mode: 'Markdown' });
+    let report = lang === 'en'
+      ? `📊 *Detailed Sales Report*\n\n`
+      : `📊 *Laporan Jualan Terperinci*\n\n`;
+
+    const sortedProducts = Object.entries(productStats).sort((a, b) => b[1].revenue - a[1].revenue);
+
+    if (sortedProducts.length === 0) {
+      report += lang === 'en' ? 'No sales data available.' : 'Tiada data jualan.';
+    } else {
+      sortedProducts.forEach(([name, stats]) => {
+        report += `📦 *${name}*\n`;
+        report += `🛒 Sold: ${stats.count} | 💰 Rev: ${config.store.currency}${stats.revenue.toFixed(2)}\n\n`;
+      });
+    }
+
+    await ctx.answerCbQuery();
+    await ctx.reply(report, { parse_mode: 'Markdown' });
+  } catch (error) {
+    console.error('Detailed Report Error:', error);
+    await ctx.reply('❌ Error generating report.');
+  }
 }
 
 async function handleProcessImport(ctx) {

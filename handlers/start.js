@@ -204,44 +204,50 @@ module.exports = {
 };
 
 async function handleGuideMenu(ctx) {
-  const userId = ctx.from.id;
-  const user = await db.getUser(userId);
-  const lang = user?.language || 'ms';
-  const admins = await db.getAdmins();
+  try {
+    const userId = ctx.from.id;
+    const user = await db.getUser(userId);
+    const lang = user?.language || 'ms';
+    const admins = await db.getAdmins();
 
-  const isOwner = admins.owner === userId;
-  const isAdmin = admins.admins.includes(userId);
+    const isOwner = admins.owner === userId;
+    const isAdmin = admins.admins.includes(userId);
 
-  const buttons = [
-    [Markup.button.callback(lang === 'ms' ? '👤 Panduan Pengguna' : '👤 User Guide', 'guide_user')]
-  ];
+    const buttons = [
+      [Markup.button.callback(lang === 'ms' ? '👤 Panduan Pengguna' : '👤 User Guide', 'guide_user')]
+    ];
 
-  if (isAdmin || isOwner) {
-    buttons.push([Markup.button.callback(lang === 'ms' ? '⚙️ Panduan Admin' : '⚙️ Admin Guide', 'guide_admin')]);
+    if (isAdmin || isOwner) {
+      buttons.push([Markup.button.callback(lang === 'ms' ? '⚙️ Panduan Admin' : '⚙️ Admin Guide', 'guide_admin')]);
+    }
+
+    if (isOwner) {
+      buttons.push([Markup.button.callback(lang === 'ms' ? '👑 Panduan Owner' : '👑 Owner Guide', 'guide_owner')]);
+    }
+
+    buttons.push([Markup.button.callback(t('btnBack', lang), 'main_menu')]);
+
+    const message = lang === 'ms'
+      ? '📚 *Pusat Bantuan*\n\nSila pilih panduan yang anda perlukan:'
+      : '📚 *Help Center*\n\nPlease select the guide you need:';
+
+    await safeEditMessage(ctx, message, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard(buttons)
+    });
+  } catch (error) {
+    console.error('Guide Menu Error:', error);
+    await ctx.reply('❌ Error loading guide menu.');
   }
-
-  if (isOwner) {
-    buttons.push([Markup.button.callback(lang === 'ms' ? '👑 Panduan Owner' : '👑 Owner Guide', 'guide_owner')]);
-  }
-
-  buttons.push([Markup.button.callback(t('btnBack', lang), 'main_menu')]);
-
-  const message = lang === 'ms'
-    ? '📚 *Pusat Bantuan*\n\nSila pilih panduan yang anda perlukan:'
-    : '📚 *Help Center*\n\nPlease select the guide you need:';
-
-  await safeEditMessage(ctx, message, {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard(buttons)
-  });
 }
 
 async function handleUserGuide(ctx) {
-  const user = await db.getUser(ctx.from.id);
-  const lang = user?.language || 'ms';
+  try {
+    const user = await db.getUser(ctx.from.id);
+    const lang = user?.language || 'ms';
 
-  const guideText = lang === 'ms'
-    ? `📖 *PANDUAN PENGGUNAAN BOT*
+    const guideText = lang === 'ms'
+      ? `📖 *PANDUAN PENGGUNAAN BOT*
 
 🛍️ *Cara Membeli Produk:*
 1. Klik butang "Beli Produk" di menu utama
@@ -279,7 +285,7 @@ async function handleUserGuide(ctx) {
 • \`/list\` - Lihat semua arahan
 
 ❓ Jika ada masalah, sila hubungi admin melalui Support!`
-    : `📖 *BOT USAGE GUIDE*
+      : `📖 *BOT USAGE GUIDE*
 
 🛍️ *How to Buy Products:*
 1. Click "Buy Products" button in main menu
@@ -318,21 +324,26 @@ async function handleUserGuide(ctx) {
 
 ❓ If you have any issues, please contact admin via Support!`;
 
-  await safeEditMessage(ctx, guideText, {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback(lang === 'ms' ? '🔙 Kembali' : '🔙 Back', 'user_guide')]
-    ])
-  });
+    await safeEditMessage(ctx, guideText, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback(lang === 'ms' ? '🔙 Kembali' : '🔙 Back', 'user_guide')]
+      ])
+    });
+  } catch (error) {
+    console.error('User Guide Error:', error);
+    await ctx.reply('❌ Error loading user guide.');
+  }
 }
 
 async function handleAdminGuide(ctx) {
-  const userId = ctx.from.id;
-  const user = await db.getUser(userId);
-  const lang = user?.language || 'ms';
+  try {
+    const userId = ctx.from.id;
+    const user = await db.getUser(userId);
+    const lang = user?.language || 'ms';
 
-  const text = lang === 'ms'
-    ? `⚙️ *PANDUAN ADMIN*
+    const text = lang === 'ms'
+      ? `⚙️ *PANDUAN ADMIN*
 
 📦 *Urus Pesanan:*
 • \`/verify [order_id]\` - Sahkan pesanan & tolak stok
@@ -356,7 +367,7 @@ async function handleAdminGuide(ctx) {
 💬 *Support & Broadcast:*
 • \`/join [token]\` - Masuk sesi support
 • \`/broadcast\` - Hantar mesej ke semua user`
-    : `⚙️ *ADMIN GUIDE*
+      : `⚙️ *ADMIN GUIDE*
 
 📦 *Manage Orders:*
 • \`/verify [order_id]\` - Verify order & deduct stock
@@ -381,21 +392,26 @@ async function handleAdminGuide(ctx) {
 • \`/join [token]\` - Join support session
 • \`/broadcast\` - Send message to all users`;
 
-  await safeEditMessage(ctx, text, {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback(lang === 'ms' ? '🔙 Kembali' : '🔙 Back', 'user_guide')]
-    ])
-  });
+    await safeEditMessage(ctx, text, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback(lang === 'ms' ? '🔙 Kembali' : '🔙 Back', 'user_guide')]
+      ])
+    });
+  } catch (error) {
+    console.error('Admin Guide Error:', error);
+    await ctx.reply('❌ Error loading admin guide.');
+  }
 }
 
 async function handleOwnerGuide(ctx) {
-  const userId = ctx.from.id;
-  const user = await db.getUser(userId);
-  const lang = user?.language || 'ms';
+  try {
+    const userId = ctx.from.id;
+    const user = await db.getUser(userId);
+    const lang = user?.language || 'ms';
 
-  const text = lang === 'ms'
-    ? `👑 *PANDUAN OWNER*
+    const text = lang === 'ms'
+      ? `👑 *PANDUAN OWNER*
 
 🔐 *Akses Penuh:*
 • \`/addadmin [user_id]\` - Lantik admin baru
@@ -414,7 +430,7 @@ async function handleOwnerGuide(ctx) {
 
 💡 *Tips:*
 Owner mempunyai akses penuh ke semua fungsi Admin + fungsi kritikal sistem.`
-    : `👑 *OWNER GUIDE*
+      : `👑 *OWNER GUIDE*
 
 🔐 *Full Access:*
 • \`/addadmin [user_id]\` - Appoint new admin
@@ -434,10 +450,14 @@ Owner mempunyai akses penuh ke semua fungsi Admin + fungsi kritikal sistem.`
 💡 *Tips:*
 Owner has full access to all Admin functions + critical system functions.`;
 
-  await safeEditMessage(ctx, text, {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback(lang === 'ms' ? '🔙 Kembali' : '🔙 Back', 'user_guide')]
-    ])
-  });
+    await safeEditMessage(ctx, text, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback(lang === 'ms' ? '🔙 Kembali' : '🔙 Back', 'user_guide')]
+      ])
+    });
+  } catch (error) {
+    console.error('Owner Guide Error:', error);
+    await ctx.reply('❌ Error loading owner guide.');
+  }
 }
