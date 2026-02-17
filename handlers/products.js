@@ -1,4 +1,14 @@
 const { getDiscountedPrice } = require('./categoryDiscounts'); // Import helper
+const { Markup } = require('telegraf');
+const db = require('../utils/database');
+const { t } = require('../utils/translations');
+const { generateOrderId, generateSessionToken, isSessionExpired } = require('../utils/helpers');
+const { safeEditMessage } = require('../utils/messageHelper');
+const { setAwaitingProof } = require('./paymentProof');
+const { getPriceDisplay, convertPrice, formatPrice } = require('../utils/currencyHelper');
+const fs = require('fs').promises;
+const path = require('path');
+const { escapeMarkdown } = require('../utils/security'); // Security Utils
 
 async function handleBuyProducts(ctx) {
   const userId = ctx.from.id;
