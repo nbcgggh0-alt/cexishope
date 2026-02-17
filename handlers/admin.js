@@ -381,46 +381,65 @@ async function handleVerifyOrder(ctx, orderId) {
       });
 
       let verifyMsg;
+
       if (order.deliveredItem) {
-        // Auto-delivery receipt with item
-        verifyMsg = lang === 'ms'
-          ? `═══════════════════\n` +
-          `🧾 *RESIT PEMBELIAN*\n` +
-          `═══════════════════\n\n` +
-          `🆔 Order:    \`${safeOrderId}\`\n` +
-          `📦 Produk:  ${safeProductName}\n` +
-          `💰 Harga:    RM${order.price}\n` +
-          `📅 Tarikh:   ${dateStr}\n` +
-          `✅ Status:   DISAHKAN\n\n` +
-          `═══════════════════\n` +
-          `🔑 *Item Anda:*\n\`${safeDeliveredItem}\`\n` +
-          `═══════════════════\n\n` +
-          `⚠️ _Simpan maklumat ini! Ia tidak akan dihantar semula._\n` +
-          `📋 Lihat semula di "My Items" dalam menu utama.`
-          : `═══════════════════\n` +
-          `🧾 *PURCHASE RECEIPT*\n` +
-          `═══════════════════\n\n` +
-          `🆔 Order:     \`${orderId}\`\n` +
-          `📦 Product:  ${productName}\n` +
-          `💰 Price:      RM${order.price}\n` +
-          `📅 Date:       ${dateStr}\n` +
-          `✅ Status:    VERIFIED\n\n` +
-          `═══════════════════\n` +
-          `🔑 *Your Item:*\n\`${order.deliveredItem}\`\n` +
-          `═══════════════════\n\n` +
-          `⚠️ _Save this information! It will not be sent again._\n` +
-          `📋 View again in "My Items" from the main menu.`;
-          : `═══════════════════\n` +
-          `🧾 *PURCHASE RECEIPT*\n` +
-          `═══════════════════\n\n` +
-          `🆔 Order:     \`${safeOrderId}\`\n` +
-          `📦 Product:  ${safeProductName}\n` +
-          `💰 Price:      RM${order.price}\n` +
-          `📅 Date:       ${dateStr}\n` +
-          `✅ Status:    VERIFIED\n\n` +
-          `═══════════════════\n\n` +
-          `📝 Admin will deliver your item shortly.\n` +
-          `Please wait a moment! 🙏`;
+        // SCENARIO: Auto-delivery (Item exists)
+        if (lang === 'ms') {
+          verifyMsg = `═══════════════════\n` +
+            `🧾 *RESIT PEMBELIAN*\n` +
+            `═══════════════════\n\n` +
+            `🆔 Order:    \`${safeOrderId}\`\n` +
+            `📦 Produk:  ${safeProductName}\n` +
+            `💰 Harga:    RM${order.price}\n` +
+            `📅 Tarikh:   ${dateStr}\n` +
+            `✅ Status:   DISAHKAN\n\n` +
+            `═══════════════════\n` +
+            `🔑 *Item Anda:*\n\`${safeDeliveredItem}\`\n` +
+            `═══════════════════\n\n` +
+            `⚠️ _Simpan maklumat ini! Ia tidak akan dihantar semula._\n` +
+            `📋 Lihat semula di "My Items" dalam menu utama.`;
+        } else {
+          verifyMsg = `═══════════════════\n` +
+            `🧾 *PURCHASE RECEIPT*\n` +
+            `═══════════════════\n\n` +
+            `🆔 Order:     \`${safeOrderId}\`\n` +
+            `📦 Product:  ${safeProductName}\n` +
+            `💰 Price:      RM${order.price}\n` +
+            `📅 Date:       ${dateStr}\n` +
+            `✅ Status:    VERIFIED\n\n` +
+            `═══════════════════\n` +
+            `🔑 *Your Item:*\n\`${order.deliveredItem}\`\n` +
+            `═══════════════════\n\n` +
+            `⚠️ _Save this information! It will not be sent again._\n` +
+            `📋 View again in "My Items" from the main menu.`;
+        }
+      } else {
+        // SCENARIO: Manual Delivery (Item pending)
+        if (lang === 'ms') {
+          verifyMsg = `═══════════════════\n` +
+            `🧾 *RESIT PEMBELIAN*\n` +
+            `═══════════════════\n\n` +
+            `🆔 Order:    \`${safeOrderId}\`\n` +
+            `📦 Produk:  ${safeProductName}\n` +
+            `💰 Harga:    RM${order.price}\n` +
+            `📅 Tarikh:   ${dateStr}\n` +
+            `✅ Status:   DISAHKAN\n\n` +
+            `═══════════════════\n\n` +
+            `📝 Admin akan hantar item anda sebentar lagi.\n` +
+            `Sila tunggu sebentar! 🙏`;
+        } else {
+          verifyMsg = `═══════════════════\n` +
+            `🧾 *PURCHASE RECEIPT*\n` +
+            `═══════════════════\n\n` +
+            `🆔 Order:     \`${safeOrderId}\`\n` +
+            `📦 Product:  ${safeProductName}\n` +
+            `💰 Price:      RM${order.price}\n` +
+            `📅 Date:       ${dateStr}\n` +
+            `✅ Status:    VERIFIED\n\n` +
+            `═══════════════════\n\n` +
+            `📝 Admin will deliver your item shortly.\n` +
+            `Please wait a moment! 🙏`;
+        }
       }
 
       await ctx.telegram.sendMessage(
