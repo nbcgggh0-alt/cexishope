@@ -68,7 +68,7 @@ const CUSTOM_FILE = path.join(__dirname, '../currency_custom.json');
 // --- ADMIN HANDLERS ---
 
 async function handleAdminRates(ctx) {
-  if (ctx.from.id.toString() !== config.ownerId) return;
+  if (ctx.from.id.toString() !== config.OWNER_ID.toString()) return;
 
   const CurrencyEngine = require('../utils/currency/CurrencyEngine');
   const rates = await CurrencyEngine.getRates('MYR');
@@ -112,7 +112,7 @@ async function handleAdminRates(ctx) {
 }
 
 async function handleSetRate(ctx) {
-  if (ctx.from.id.toString() !== config.ownerId) return;
+  if (ctx.from.id.toString() !== config.OWNER_ID.toString()) return;
 
   const args = ctx.message.text.split(' ');
   if (args.length !== 3) {
@@ -144,7 +144,7 @@ async function handleSetRate(ctx) {
 }
 
 async function handleResetRate(ctx) {
-  if (ctx.from.id.toString() !== config.ownerId) return;
+  if (ctx.from.id.toString() !== config.OWNER_ID.toString()) return;
 
   const args = ctx.message.text.split(' ');
   if (args.length !== 2) {
@@ -177,7 +177,7 @@ async function handleResetRate(ctx) {
 }
 
 async function handleForceUpdateRates(ctx) {
-  if (ctx.from.id.toString() !== config.ownerId) return; // Security check
+  if (ctx.from.id.toString() !== config.OWNER_ID.toString()) return; // Security check
 
   const CurrencyEngine = require('../utils/currency/CurrencyEngine');
   CurrencyEngine.cache.rates = null; // Clear cache

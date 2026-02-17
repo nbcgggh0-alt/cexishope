@@ -18,6 +18,7 @@ module.exports = {
 
   // Owner Telegram ID
   OWNER_ID: parseInt(process.env.OWNER_ID),
+  ownerId: process.env.OWNER_ID, // Alias for backward compatibility
 
   // Channel ID for Transaction Notifications (Optional)
   TRANSACTION_CHANNEL_ID: process.env.TRANSACTION_CHANNEL_ID,
