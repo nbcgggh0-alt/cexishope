@@ -138,6 +138,21 @@ class Database {
     return fromDb(data);
   }
 
+  async searchUsers(query) {
+    // Search by ID (exact) or Username (partial)
+    const { data, error } = await supabase
+      .from('cexi_users')
+      .select('*')
+      .or(`id.eq.${query},username.ilike.%${query}%`)
+      .limit(10);
+
+    if (error) {
+      console.error('Error searching users:', error.message);
+      return [];
+    }
+    return data.map(item => fromDb(item));
+  }
+
   // --- Products ---
   async getProducts() { return await this.getAll('cexi_products'); }
   async saveProducts(products) { return await this.syncTable('cexi_products', products); }

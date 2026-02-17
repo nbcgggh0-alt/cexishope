@@ -579,48 +579,73 @@ async function handlePaymentMethodSelect(ctx, method, orderId) {
   // Save payment method to transaction
   await db.updateTransaction(orderId, { paymentMethod: method });
 
-  // Define QR paths
-  const qrPaths = {
-    tng: path.join(__dirname, '..', 'qr', 'tng-qr.jpg'),
-    qris: path.join(__dirname, '..', 'qr', 'qris-qr.jpg')
-  };
+  // Load Settings
+  const settings = await db.getSettings();
+  const bank = settings.bankDetails;
+  const qrCodes = settings.paymentQr || {};
+  const customQrId = qrCodes[method];
 
-  const qrPath = qrPaths[method];
   const methodName = method === 'tng' ? 'Touch \'n Go / DuitNow' : 'QRIS / DANA';
   const methodFlag = method === 'tng' ? '🇲🇾' : '🇮🇩';
 
-  const caption = lang === 'ms'
-    ? `${methodFlag} *Pembayaran ${methodName}*\n\n🆔 Order: \`${orderId}\`\n💰 Jumlah: RM${order.price}\n\n📱 Sila scan QR di bawah untuk membuat pembayaran.\nSelepas bayar, hantar bukti pembayaran anda.`
-    : `${methodFlag} *${methodName} Payment*\n\n🆔 Order: \`${orderId}\`\n💰 Amount: RM${order.price}\n\n📱 Please scan the QR below to make payment.\nAfter paying, send your payment proof.`;
+  let caption = lang === 'ms'
+    ? `${methodFlag} *Pembayaran ${methodName}*\n\n🆔 Order: \`${orderId}\`\n💰 Jumlah: RM${order.price}\n\n📱 Sila scan QR di bawah untuk membuat pembayaran.`
+    : `${methodFlag} *${methodName} Payment*\n\n🆔 Order: \`${orderId}\`\n💰 Amount: RM${order.price}\n\n📱 Please scan the QR below to make payment.`;
+
+  // Add Bank Details if available and relevant (for TnG/DuitNow usually implies bank transfer too)
+  // Or should we always show bank details? 
+  // TnG DuitNow is often linked to bank.
+  if (bank && bank.accountNo && method === 'tng') {
+    caption += lang === 'ms'
+      ? `\n\n🏦 *Pindahan Bank / Manual:*\nBank: ${bank.bankName}\nNama: ${bank.holderName}\nNo. Akaun: \`${bank.accountNo}\``
+      : `\n\n🏦 *Bank Transfer / Manual:*\nBank: ${bank.bankName}\nName: ${bank.holderName}\nAccount No: \`${bank.accountNo}\``;
+  }
+
+  caption += lang === 'ms'
+    ? `\n\n📝 *Selepas bayar, tekan butang di bawah untuk hantar bukti pembayaran.*`
+    : `\n\n📝 *After paying, press button below to upload payment proof.*`;
 
   await ctx.answerCbQuery();
 
-  try {
-    if (await fs.access(qrPath).then(() => true).catch(() => false)) {
-      await ctx.replyWithPhoto(
-        { source: qrPath },
-        {
-          caption: caption,
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback(lang === 'ms' ? '📦 Lihat Order Saya' : '📦 View My Orders', 'my_orders')],
-            [Markup.button.callback(lang === 'ms' ? '💬 Chat dengan Admin' : '💬 Chat with Admin', 'support')],
-            [Markup.button.callback(t('btnHome', lang), 'main_menu')]
-          ])
-        }
-      );
-    } else {
-      const noQrMsg = lang === 'ms'
-        ? `⚠️ *QR ${methodName} belum tersedia.*\n\nSila hubungi admin untuk maklumat pembayaran.`
-        : `⚠️ *${methodName} QR not available yet.*\n\nPlease contact admin for payment details.`;
+  const buttons = [
+    [Markup.button.callback(lang === 'ms' ? '📸 Hantar Bukti Pembayaran' : '📸 Upload Payment Proof', `uploadproof_${orderId}`)], // Add explicit upload button here
+    [Markup.button.callback(lang === 'ms' ? '📦 Lihat Order Saya' : '📦 View My Orders', 'my_orders')],
+    [Markup.button.callback(lang === 'ms' ? '💬 Chat dengan Admin' : '💬 Chat with Admin', 'support')],
+    [Markup.button.callback(t('btnHome', lang), 'main_menu')]
+  ];
 
-      await ctx.reply(noQrMsg, {
+  try {
+    if (customQrId) {
+      // Send using file_id from DB
+      await ctx.replyWithPhoto(customQrId, {
+        caption: caption,
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback(lang === 'ms' ? '💬 Chat dengan Admin' : '💬 Chat with Admin', 'support')],
-          [Markup.button.callback(t('btnHome', lang), 'main_menu')]
-        ])
+        ...Markup.inlineKeyboard(buttons)
       });
+    } else {
+      // Fallback to local file
+      const qrPaths = {
+        tng: path.join(__dirname, '..', 'qr', 'tng-qr.jpg'),
+        qris: path.join(__dirname, '..', 'qr', 'qris-qr.jpg')
+      };
+      const qrPath = qrPaths[method];
+
+      if (await fs.access(qrPath).then(() => true).catch(() => false)) {
+        await ctx.replyWithPhoto(
+          { source: qrPath },
+          {
+            caption: caption,
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard(buttons)
+          }
+        );
+      } else {
+        // No QR available (local or db) -> Show text only
+        await ctx.reply(caption + (lang === 'ms' ? '\n\n⚠️ QR Code belum ditetapkan.' : '\n\n⚠️ QR Code not set yet.'), {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard(buttons)
+        });
+      }
     }
   } catch (error) {
     console.error('Error showing payment QR:', error.message);

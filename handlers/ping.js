@@ -171,13 +171,17 @@ async function handlePing(ctx) {
     const lowStockProducts = products.filter(p => p.stock <= 5).length;
 
     const responseTime = Date.now() - startTime;
+    // Calculate network latency (Telegrams timestamp is in seconds)
+    const messageTime = ctx.message?.date * 1000 || Date.now();
+    const networkLatency = startTime - messageTime;
+    const safeNetworkLatency = networkLatency > 0 ? networkLatency : 0;
 
     // ─── Build text with Telegram HTML blockquotes ───
     const isMalay = lang === 'ms';
 
     const header = isMalay
-      ? `🏓 <b>PING — SISTEM RUNTIME</b>\n⚡ <b>${responseTime}ms</b> · 📅 ${now.toLocaleDateString('ms-MY')} · 🕐 ${now.toLocaleTimeString('ms-MY')}\n`
-      : `🏓 <b>PING — SYSTEM RUNTIME</b>\n⚡ <b>${responseTime}ms</b> · 📅 ${now.toLocaleDateString('en-US')} · 🕐 ${now.toLocaleTimeString('en-US')}\n`;
+      ? `🏓 <b>PING — SISTEM RUNTIME</b>\n⚡ <b>Proses: ${responseTime}ms</b> · 🌐 <b>Network: ${safeNetworkLatency}ms</b>\n📅 ${now.toLocaleDateString('ms-MY')} · 🕐 ${now.toLocaleTimeString('ms-MY')}\n`
+      : `🏓 <b>PING — SYSTEM RUNTIME</b>\n⚡ <b>Process: ${responseTime}ms</b> · 🌐 <b>Network: ${safeNetworkLatency}ms</b>\n📅 ${now.toLocaleDateString('en-US')} · 🕐 ${now.toLocaleTimeString('en-US')}\n`;
 
     const statusBar = `<blockquote>` +
       `✅ <b>${isMalay ? 'Status' : 'Status'}:</b> ${settings.maintenanceMode ? '🔴 Maintenance' : '🟢 Online'}\n` +

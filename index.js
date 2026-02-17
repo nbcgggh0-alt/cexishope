@@ -7,16 +7,18 @@ const { handleCreateVoucher, handleRedeemVoucher, handleListVouchers, handleTogg
 const { handleAdminPanel, handleAdminOrders, handleVerifyOrder, handleRejectOrder, handleAdminProducts, handleAdminSessions, handleAdminBroadcast, handleBroadcastMessage, handleCheckAllOrderId, handleAdminStatistics, handleAllOrders, handleViewOrder, handleDeleteOrderConfirm, handleDeleteOrder } = require('./handlers/admin');
 const { handleCategoryManagement, handleCategoryDetail, handleDeleteCategory, handleEditCategoryName, handleEditCategoryIcon, processCategoryEdit } = require('./handlers/categoryManagement');
 const { handleProductManagementMenu, handleProductList, handleProductDetail, handleToggleProduct, handleDeleteProductConfirm, handleDeleteProduct, handleEditProductField, processProductEdit, handleLowStockProducts } = require('./handlers/productManagementImproved');
-const { handleOwnerPanel, handleOwnerAdmins, handleSetOwner, handleAddAdmin, handleRemoveAdmin, handleOwnerSettings, handleOwnerBackup, handleOwnerAnalytics, handleOwnerAdvanced } = require('./handlers/owner');
+const { handleOwnerPanel, handleOwnerAdmins, handleSetOwner, handleAddAdmin, handleRemoveAdmin, handleOwnerSettings, handleOwnerBackup, handleOwnerAdvanced } = require('./handlers/owner');
+const { handleAnalytics } = require('./handlers/ownerAnalytics');
 const { handleServerPanel, handleViewPanel, handleServerPower, handleCreateServer, handleCreateServerWithUser, handleSetPrimary, handleDeletePanel, handleConfirmDeletePanel, handleHealthCheck: handlePteroHealthCheck, handleAddPanelStart } = require('./handlers/serverPanel');
 const { handleSupport, handleJoinSession, handleLeaveSession, handleCloseSession, handleEndSession, handleSessionMessage, handleListSessions, handleSetActiveSession, handleSendToSession } = require('./handlers/session');
-const { handleBanUser, handleUnbanUser, handleTagUser, handleUntagUser, handleListBannedUsers, checkIfBanned } = require('./handlers/userManagement');
+const { handleBanUser, handleUnbanUser, handleTagUser, handleUntagUser, handleListBannedUsers, checkIfBanned, handleUserSearch, handleAdminUserOrders } = require('./handlers/userManagement');
 const { handleSearchOrders, handleFilterOrders, handleFilterCallback } = require('./handlers/orderSearch');
 const { handleDuplicateProduct, handleInventoryHistory, handleStockAdjustment, handleAddItem, handleAddItems, handleAddItemsFile } = require('./handlers/productManagement');
 const { handleAddTemplate, handleQuickTemplate, handleListTemplates, handleDeleteTemplate, handleAddFAQ, handleFAQList, handleListFAQs, handleDeleteFAQ, checkFAQResponse } = require('./handlers/autoReply');
 const { handleSetCurrency, handleCurrencySelect, handleAdminRates, handleSetRate, handleResetRate, handleForceUpdateRates } = require('./handlers/currency');
 const { handleRating, handleFeedbackComment, handleSkipFeedback, handleViewFeedbacks } = require('./handlers/feedback');
 const { handlePaymentProof, isAwaitingProof, handleUploadProofPrompt, handleSkipProof } = require('./handlers/paymentProof');
+const { handlePaymentSettings, handleSetBank, handleSetQR } = require('./handlers/paymentSettings');
 const { handlePing } = require('./handlers/ping');
 const { handleAutoPromotePanel, handleCreateBroadcast, handleScheduleMessage, handlePromoTemplates, handleUserTargeting, handlePromoAnalytics, handleABTesting, handleDiscountCodes, handleFlashSales, handleRepeatCampaigns, handleActiveCampaigns, handleBroadcastAll, handleBroadcastActive, handleBroadcastTagged, handleTargetAll, handleTargetActive, handleTargetTagged, handleTargetBuyers, handlePromoDetailedReport, handleCreateABTest, handleABTestResults, handlePauseAllCampaigns, handleViewSchedule, handleUsePromoTemplate, handleViewDiscount, handleViewFlash, handleViewRepeat, handleScheduleMsg, handleAddPromoTemplate, handleCreateABTestCommand, handleCreateDiscount, handleCreateFlash, handleRepeatCampaign } = require('./handlers/autoPromote');
 const { handleSystemPanel, handleUserStats, handleSalesAnalytics, handleAdminLogs, handleHealthCheck, handleStorageUsage, handleExportData, handleMaintenanceMode, handleBackupUI, handleErrorMonitor, handlePerformance, handleAPILimits, handleWebhookLogs, handleTransactionReports, handleInventoryAlerts, handleSessionAnalytics, handleEngagement, handleRevenue, handleImportData, handleSystemSettings, handleCacheManagement, handleExportUsers, handleExportProducts, handleExportTransactions, handleExportAll, handleStoreStatus, handleToggleStoreStatus, handleToggleMaintenance } = require('./handlers/systemFunctions');
@@ -243,6 +245,25 @@ bot.command('untag', safeHandler(async (ctx) => {
 
 bot.command('bannedlist', safeHandler(handleListBannedUsers));
 
+// User Search & Actions
+bot.command('searchuser', safeHandler(handleUserSearch));
+
+bot.action(/^unban_user_(\d+)$/, safeHandler(async (ctx) => {
+  await handleUnbanUser(ctx, ctx.match[1]);
+}));
+
+bot.action(/^ban_user_prompt_(\d+)$/, safeHandler(async (ctx) => {
+  await handleBanUser(ctx, ctx.match[1], 'Banned via Admin Panel');
+}));
+
+bot.action(/^tag_user_prompt_(\d+)$/, safeHandler(async (ctx) => {
+  await ctx.reply(`💡 To tag this user, type:\n\`/tag ${ctx.match[1]} [VIP|Reseller|Scammer]\``, { parse_mode: 'Markdown' });
+}));
+
+bot.action(/^admin_orders_(\d+)$/, safeHandler(async (ctx) => {
+  await handleAdminUserOrders(ctx, ctx.match[1]);
+}));
+
 // Advanced Order Search
 bot.command('searchorder', safeHandler(async (ctx) => {
   const query = ctx.message.text.replace('/searchorder', '').trim();
@@ -362,6 +383,7 @@ bot.command('deletefaq', safeHandler(async (ctx) => {
 // Admin & Owner shortcuts
 bot.command('admin', safeHandler(handleAdminPanel));
 bot.command('owner', safeHandler(handleOwnerPanel));
+bot.command('analytics', safeHandler(handleAnalytics));
 
 // Quick add panel: /upserver domain,ptla,ptlc
 bot.command('upserver', safeHandler(async (ctx) => {
@@ -443,6 +465,11 @@ bot.command('setrate', safeHandler(handleSetRate));
 bot.command('resetrate', safeHandler(handleResetRate));
 bot.command('updaterates', safeHandler(handleForceUpdateRates));
 bot.action('force_update_rates', safeHandler(handleForceUpdateRates));
+
+// Payment Settings
+bot.command('paymentsettings', safeHandler(handlePaymentSettings));
+bot.command('setbank', safeHandler(handleSetBank));
+bot.command('setqr', safeHandler(handleSetQR));
 
 bot.command('skipfeedback', safeHandler(async (ctx) => {
   const userId = ctx.from.id;
@@ -1213,6 +1240,8 @@ bot.action('owner_panel', safeHandler(handleOwnerPanel));
 bot.action('owner_admins', safeHandler(handleOwnerAdmins));
 bot.action('owner_settings', safeHandler(handleOwnerSettings));
 bot.action('owner_backup', safeHandler(handleOwnerBackup));
+bot.action('owner_analytics', safeHandler(handleAnalytics));
+bot.action('owner_advanced', safeHandler(handleOwnerAdvanced));
 
 // Pterodactyl Server Panel
 bot.action('server_panel', safeHandler(handleServerPanel));
@@ -2043,7 +2072,14 @@ bot.catch(async (err, ctx) => {
   }
 });
 
-bot.launch()
+// Optimized Pterodactyl Polling Configuration
+bot.launch({
+  polling: {
+    timeout: 50, // Increase timeout to reduce connection churn
+    limit: 100,  // Batch size
+    allowedUpdates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member', 'chat_member']
+  }
+})
   .then(async () => {
     // Check for pending restart
     try {
