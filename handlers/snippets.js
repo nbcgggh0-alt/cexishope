@@ -135,8 +135,79 @@ async function handleSnippet(ctx) {
     }
 }
 
+async function handleQuickReplyList(ctx, token) {
+    const userId = ctx.from.id;
+    if (!await isAdmin(userId)) return;
+
+    try {
+        const snippets = await db.getAll('cexi_snippets');
+        if (snippets.length === 0) {
+            await ctx.answerCbQuery('No snippets found. Add with /addsnippet');
+            return;
+        }
+
+        const buttons = snippets.map(s => [
+            Markup.button.callback(`📝 ${s.name}`, `use_snippet_${token}_${s.name}`)
+        ]);
+
+        buttons.push([Markup.button.callback('🔙 Back', `active_session_${token}`)]);
+
+        await ctx.editMessageText('🤖 *Select a Quick Reply:*', {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard(buttons)
+        });
+    } catch (error) {
+        console.error('Failed to list quick replies:', error);
+        await ctx.answerCbQuery('Error loading snippets');
+    }
+}
+
+async function handleUseSnippet(ctx, token, snippetName) {
+    const userId = ctx.from.id;
+    if (!await isAdmin(userId)) return;
+
+    try {
+        const snippets = await db.getAll('cexi_snippets');
+        const snippet = snippets.find(s => s.name === snippetName);
+
+        if (!snippet) {
+            await ctx.answerCbQuery('Snippet not found');
+            return;
+        }
+
+        const session = await db.getSession(token);
+        if (!session) {
+            await ctx.answerCbQuery('Session not found');
+            return;
+        }
+
+        // Send to User
+        await ctx.telegram.sendMessage(session.userId, snippet.content);
+
+        // Log to DB
+        await db.addSessionMessage(token, {
+            from: 'admin',
+            type: 'text',
+            text: snippet.content,
+            timestamp: new Date().toISOString()
+        });
+
+        await ctx.answerCbQuery(`Sent: ${snippetName}`);
+
+        // Return to session view
+        const { handleSetActiveSession } = require('./session');
+        await handleSetActiveSession(ctx, token);
+
+    } catch (error) {
+        console.error('Failed to send quick reply:', error);
+        await ctx.answerCbQuery('Failed to send message');
+    }
+}
+
 module.exports = {
     handleAddSnippet,
     handleDelSnippet,
-    handleSnippet
+    handleSnippet,
+    handleQuickReplyList,
+    handleUseSnippet
 };

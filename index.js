@@ -51,8 +51,23 @@ const { generateId } = require('./utils/helpers');
 const { safeEditMessage } = require('./utils/messageHelper');
 const { t } = require('./utils/translations');
 const config = require('./config');
+const { checkRateLimit } = require('./utils/security'); // Security Utils
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+
+// Rate Limiting Middleware
+bot.use(async (ctx, next) => {
+  if (ctx.from) {
+    const isAllowed = checkRateLimit(ctx.from.id);
+    if (!isAllowed) {
+      // Optional: Reply only once per blocked window to avoid spamming the blocked user
+      // For now, we just ignore the request to save resources
+      console.warn(`Rate limit exceeded for user ${ctx.from.id}`);
+      return;
+    }
+  }
+  return next();
+});
 
 // Safe wrapper for callback handlers to prevent crashes
 function safeHandler(handler) {
@@ -1946,7 +1961,15 @@ bot.action(/^end_session_(.+)$/, safeHandler(async (ctx) => {
 }));
 
 bot.action(/^quick_reply_(.+)$/, safeHandler(async (ctx) => {
-  await ctx.answerCbQuery('Feature coming soon!');
+  const { handleQuickReplyList } = require('./handlers/snippets');
+  await handleQuickReplyList(ctx, ctx.match[1]);
+}));
+
+bot.action(/^use_snippet_(.+)_(.+)$/, safeHandler(async (ctx) => {
+  const token = ctx.match[1];
+  const snippetName = ctx.match[2];
+  const { handleUseSnippet } = require('./handlers/snippets');
+  await handleUseSnippet(ctx, token, snippetName);
 }));
 
 bot.action(/^rate_(.+)_(\d+)$/, safeHandler(async (ctx) => {

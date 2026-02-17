@@ -4,6 +4,7 @@ const { t } = require('../utils/translations');
 const { safeEditMessage } = require('../utils/messageHelper');
 const { sendFeedbackRequest } = require('./feedback');
 const { logAdminAction } = require('../utils/adminLogger');
+const { escapeMarkdown } = require('../utils/security'); // Security Utils
 
 const broadcastMode = new Map();
 
@@ -199,10 +200,14 @@ async function handleAdminOrders(ctx) {
       ? (order.productName.ms || order.productName.en)
       : order.productName;
 
-    text += `${index + 1}. 🆔 \`${order.id}\`\n`;
-    text += `   📦 ${productName}\n`;
+    const safeProductName = escapeMarkdown(productName);
+    const safeOrderId = escapeMarkdown(order.id);
+    const safeUserId = escapeMarkdown(String(order.userId));
+
+    text += `${index + 1}. 🆔 \`${safeOrderId}\`\n`;
+    text += `   📦 ${safeProductName}\n`;
     text += `   💰 RM${order.price}\n`;
-    text += `   👤 User: ${order.userId}\n\n`;
+    text += `   👤 User: ${safeUserId}\n\n`;
 
     buttons.push([
       Markup.button.callback(`✅ ${order.id}`, `verify_order_${order.id}`),
@@ -363,6 +368,10 @@ async function handleVerifyOrder(ctx, orderId) {
         ? (order.productName[lang] || order.productName.ms)
         : order.productName;
 
+      const safeProductName = escapeMarkdown(productName);
+      const safeOrderId = escapeMarkdown(orderId);
+      const safeDeliveredItem = escapeMarkdown(order.deliveredItem);
+
       const verifyDate = new Date(order.verifiedAt);
       const dateStr = verifyDate.toLocaleString(lang === 'ms' ? 'ms-MY' : 'en-US', {
         day: '2-digit', month: 'short', year: 'numeric',
@@ -376,13 +385,13 @@ async function handleVerifyOrder(ctx, orderId) {
           ? `═══════════════════\n` +
           `🧾 *RESIT PEMBELIAN*\n` +
           `═══════════════════\n\n` +
-          `🆔 Order:    \`${orderId}\`\n` +
-          `📦 Produk:  ${productName}\n` +
+          `🆔 Order:    \`${safeOrderId}\`\n` +
+          `📦 Produk:  ${safeProductName}\n` +
           `💰 Harga:    RM${order.price}\n` +
           `📅 Tarikh:   ${dateStr}\n` +
           `✅ Status:   DISAHKAN\n\n` +
           `═══════════════════\n` +
-          `🔑 *Item Anda:*\n\`${order.deliveredItem}\`\n` +
+          `🔑 *Item Anda:*\n\`${safeDeliveredItem}\`\n` +
           `═══════════════════\n\n` +
           `⚠️ _Simpan maklumat ini! Ia tidak akan dihantar semula._\n` +
           `📋 Lihat semula di "My Items" dalam menu utama.`
@@ -399,25 +408,11 @@ async function handleVerifyOrder(ctx, orderId) {
           `═══════════════════\n\n` +
           `⚠️ _Save this information! It will not be sent again._\n` +
           `📋 View again in "My Items" from the main menu.`;
-      } else {
-        // Manual delivery receipt
-        verifyMsg = lang === 'ms'
-          ? `═══════════════════\n` +
-          `🧾 *RESIT PEMBELIAN*\n` +
-          `═══════════════════\n\n` +
-          `🆔 Order:    \`${orderId}\`\n` +
-          `📦 Produk:  ${productName}\n` +
-          `💰 Harga:    RM${order.price}\n` +
-          `📅 Tarikh:   ${dateStr}\n` +
-          `✅ Status:   DISAHKAN\n\n` +
-          `═══════════════════\n\n` +
-          `📝 Admin akan hantar item anda tidak lama lagi.\n` +
-          `Sila tunggu sebentar! 🙏`
           : `═══════════════════\n` +
           `🧾 *PURCHASE RECEIPT*\n` +
           `═══════════════════\n\n` +
-          `🆔 Order:     \`${orderId}\`\n` +
-          `📦 Product:  ${productName}\n` +
+          `🆔 Order:     \`${safeOrderId}\`\n` +
+          `📦 Product:  ${safeProductName}\n` +
           `💰 Price:      RM${order.price}\n` +
           `📅 Date:       ${dateStr}\n` +
           `✅ Status:    VERIFIED\n\n` +
@@ -567,16 +562,19 @@ async function handleRejectOrder(ctx, orderId) {
         ? (order.productName[custLang] || order.productName.ms)
         : order.productName;
 
+      const safeProductName = escapeMarkdown(productName);
+      const safeOrderId = escapeMarkdown(orderId);
+
       const rejectMsg = custLang === 'ms'
         ? `❌ *Pesanan Ditolak*\n\n` +
-        `🆔 Order: \`${orderId}\`\n` +
-        `📦 Produk: ${productName}\n` +
+        `🆔 Order: \`${safeOrderId}\`\n` +
+        `📦 Produk: ${safeProductName}\n` +
         `💰 Harga: RM${order.price}\n\n` +
         `Sila hubungi support untuk maklumat lanjut.\n` +
         `Gunakan butang "💬 Support" di menu utama.`
         : `❌ *Order Rejected*\n\n` +
-        `🆔 Order: \`${orderId}\`\n` +
-        `📦 Product: ${productName}\n` +
+        `🆔 Order: \`${safeOrderId}\`\n` +
+        `📦 Product: ${safeProductName}\n` +
         `💰 Price: RM${order.price}\n\n` +
         `Please contact support for more information.\n` +
         `Use the "💬 Support" button in the main menu.`;

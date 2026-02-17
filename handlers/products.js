@@ -7,6 +7,7 @@ const { setAwaitingProof } = require('./paymentProof');
 const { getPriceDisplay, convertPrice, formatPrice } = require('../utils/currencyHelper');
 const fs = require('fs').promises;
 const path = require('path');
+const { escapeMarkdown } = require('../utils/security'); // Security Utils
 
 async function handleBuyProducts(ctx) {
   const userId = ctx.from.id;
@@ -71,8 +72,8 @@ async function handleCategory(ctx, categoryId, page = 0) {
   const pageProducts = categoryProducts.slice(startIndex, endIndex);
 
   let headerText = lang === 'ms'
-    ? `${categoryIcon} *${categoryName}*\n\n📊 ${categoryProducts.length} produk tersedia | Halaman ${currentPage + 1}/${totalPages}\n\n`
-    : `${categoryIcon} *${categoryName}*\n\n📊 ${categoryProducts.length} products available | Page ${currentPage + 1}/${totalPages}\n\n`;
+    ? `${categoryIcon} *${escapeMarkdown(categoryName)}*\n\n📊 ${categoryProducts.length} produk tersedia | Halaman ${currentPage + 1}/${totalPages}\n\n`
+    : `${categoryIcon} *${escapeMarkdown(categoryName)}*\n\n📊 ${categoryProducts.length} products available | Page ${currentPage + 1}/${totalPages}\n\n`;
 
   const buttons = await Promise.all(pageProducts.map(async prod => {
     const stockIndicator = prod.stock < 5 ? ' ⚠️' : '';
@@ -121,19 +122,23 @@ async function handleProductView(ctx, productId) {
 
   const priceDisplay = await getPriceDisplay(product.price, userCurrency);
 
+  const safeProductName = escapeMarkdown(product.name[lang] || product.name['ms']);
+  const safeDescription = escapeMarkdown(product.description[lang] || product.description['ms']);
+  const safeProductId = escapeMarkdown(product.id);
+
   const text = lang === 'ms'
-    ? `📦 *${product.name[lang] || product.name['ms']}*\n\n` +
+    ? `📦 *${safeProductName}*\n\n` +
     `💰 *Harga:* ${priceDisplay}\n` +
     `📊 *Stok:* ${product.stock} unit - ${stockStatus}\n` +
     `🔄 *Jenis:* ${product.deliveryType === 'auto' ? 'Auto Delivery' : 'Manual Delivery'}\n\n` +
-    `📝 *Penerangan:*\n${product.description[lang] || product.description['ms']}\n\n` +
-    `🆔 ID: \`${product.id}\``
-    : `📦 *${product.name[lang] || product.name['ms']}*\n\n` +
+    `📝 *Penerangan:*\n${safeDescription}\n\n` +
+    `🆔 ID: \`${safeProductId}\``
+    : `📦 *${safeProductName}*\n\n` +
     `💰 *Price:* ${priceDisplay}\n` +
     `📊 *Stock:* ${product.stock} units - ${stockStatus}\n` +
     `🔄 *Type:* ${product.deliveryType === 'auto' ? 'Auto Delivery' : 'Manual Delivery'}\n\n` +
-    `📝 *Description:*\n${product.description[lang] || product.description['ms']}\n\n` +
-    `🆔 ID: \`${product.id}\``;
+    `📝 *Description:*\n${safeDescription}\n\n` +
+    `🆔 ID: \`${safeProductId}\``;
 
   const buttons = [
     [Markup.button.callback(t('btnBuyNow', lang), `buy_${productId}`)],
@@ -212,12 +217,14 @@ async function handleBuyProduct(ctx, productId) {
   const priceDisplay = await getPriceDisplay(product.price, userCurrency);
   const finalAmountDisplay = await getPriceDisplay(finalAmount, userCurrency);
 
+  const safeProductName = escapeMarkdown(product.name[lang] || product.name['ms']);
+
   let confirmText = lang === 'ms'
     ? `📋 *Sahkan Pesanan Anda*\n\n` +
-    `📦 Produk: ${product.name[lang] || product.name['ms']}\n` +
+    `📦 Produk: ${safeProductName}\n` +
     `💰 Harga: ${priceDisplay}\n`
     : `📋 *Confirm Your Order*\n\n` +
-    `📦 Product: ${product.name[lang] || product.name['ms']}\n` +
+    `📦 Product: ${safeProductName}\n` +
     `💰 Price: ${priceDisplay}\n`;
 
   if (voucherResult.voucherCode && discount > 0) {
@@ -294,17 +301,20 @@ async function handleConfirmBuy(ctx, productId) {
   );
 
   if (existingOrder) {
+    const safeProductName = escapeMarkdown(product.name.en || product.name.ms);
+    const safeOrderId = escapeMarkdown(existingOrder.id);
+
     const msg = lang === 'ms'
       ? `⚠️ *Pesanan Sedia Ada!*\n\n` +
       `Anda sudah mempunyai pesanan aktif untuk produk ini.\n\n` +
-      `🆔 Order: \`${existingOrder.id}\`\n` +
-      `📦 Produk: ${product.name.ms}\n` +
+      `🆔 Order: \`${safeOrderId}\`\n` +
+      `📦 Produk: ${safeProductName}\n` +
       `📊 Status: ${existingOrder.status === 'pending' ? '⏳ Menunggu Bayaran' : '🔍 Menunggu Pengesahan'}\n\n` +
       `💡 Sila selesaikan pesanan sedia ada sebelum buat pesanan baru.`
       : `⚠️ *Existing Order Found!*\n\n` +
       `You already have an active order for this product.\n\n` +
-      `🆔 Order: \`${existingOrder.id}\`\n` +
-      `📦 Product: ${product.name.en || product.name.ms}\n` +
+      `🆔 Order: \`${safeOrderId}\`\n` +
+      `📦 Product: ${safeProductName}\n` +
       `📊 Status: ${existingOrder.status === 'pending' ? '⏳ Awaiting Payment' : '🔍 Awaiting Verification'}\n\n` +
       `💡 Please complete your existing order before placing a new one.`;
     await ctx.reply(msg, { parse_mode: 'Markdown' });
@@ -389,9 +399,12 @@ async function handleConfirmBuy(ctx, productId) {
       : `\n\n🎫 *Voucher Applied!*\n💳 Code: ${voucherResult.voucherCode}\n💰 Original Price: ${originalPriceDisplay}\n🎉 Discount ${discountPct}%: -${discountDisplay}\n✅ Final Price: ${finalAmountDisplay}`;
   }
 
+  const safeProductName = escapeMarkdown(product.name.ms || product.name.en || 'Product');
+  const safeOrderId = escapeMarkdown(orderId);
+
   const orderMessage = lang === 'ms'
-    ? `✅ *Order Dibuat!*\n\n🆔 ID Order: \`${orderId}\`\n📦 Produk: ${product.name.ms}\n💰 Harga: ${finalAmountDisplay}${voucherInfo}\n\n*Sila pilih kaedah pembayaran:*`
-    : `✅ *Order Created!*\n\n🆔 Order ID: \`${orderId}\`\n📦 Product: ${product.name.en || product.name.ms}\n💰 Price: ${finalAmountDisplay}${voucherInfo}\n\n*Please select payment method:*`;
+    ? `✅ *Order Dibuat!*\n\n🆔 ID Order: \`${safeOrderId}\`\n📦 Produk: ${safeProductName}\n💰 Harga: ${finalAmountDisplay}${voucherInfo}\n\n*Sila pilih kaedah pembayaran:*`
+    : `✅ *Order Created!*\n\n🆔 Order ID: \`${safeOrderId}\`\n📦 Product: ${safeProductName}\n💰 Price: ${finalAmountDisplay}${voucherInfo}\n\n*Please select payment method:*`;
 
   const buttons = [
     [Markup.button.callback('🇲🇾 Touch \'n Go / DuitNow (Malaysia)', `paymethod_tng_${orderId}`)],
@@ -520,7 +533,11 @@ async function notifyAdmins(ctx, orderId, product, userId, sessionToken) {
       ? (product.name.ms || product.name.en || 'Unknown')
       : (product.name || 'Unknown');
 
-    const message = `🔔 *New Order Alert*\n\nOrder ID: \`${orderId}\`\nProduct: ${productNameStr}\n${priceInfo}\nCustomer ID: ${userId}\nSession Token: \`${sessionToken}\``;
+    const safeProductName = escapeMarkdown(productNameStr);
+    const safeOrderId = escapeMarkdown(orderId);
+    const safeSessionToken = escapeMarkdown(sessionToken);
+
+    const message = `🔔 *New Order Alert*\n\nOrder ID: \`${safeOrderId}\`\nProduct: ${safeProductName}\n${priceInfo}\nCustomer ID: ${userId}\nSession Token: \`${safeSessionToken}\``;
 
     const buttons = Markup.inlineKeyboard([
       [Markup.button.callback('💬 Join Session', `join_session_${sessionToken}`)],
