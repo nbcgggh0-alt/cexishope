@@ -32,7 +32,10 @@ async function handleBuyProducts(ctx) {
 
   const buttons = [];
   categories.forEach(cat => {
-    buttons.push([Markup.button.callback(cat.name, `cat_${cat.id}`)]);
+    const catName = typeof cat.name === 'object'
+      ? (cat.name[lang] || cat.name['ms'] || cat.name['en'] || 'Unknown')
+      : cat.name;
+    buttons.push([Markup.button.callback(catName, `cat_${cat.id}`)]);
   });
   buttons.push([Markup.button.callback(t('btnBack', lang), 'main_menu')]);
 
@@ -62,10 +65,14 @@ async function handleCategory(ctx, categoryId) {
   // Filter active products in this category
   const products = allProducts.filter(p => p.categoryId === categoryId && p.active && p.stock > 0);
 
+  const catName = typeof category.name === 'object'
+    ? (category.name[lang] || category.name['ms'] || category.name['en'] || 'Unknown')
+    : category.name;
+
   if (products.length === 0) {
     const message = lang === 'ms'
-      ? `📂 Kategori: *${category.name}*\n\n❌ Tiada produk tersedia dalam kategori ini.`
-      : `📂 Category: *${category.name}*\n\n❌ No products available in this category.`;
+      ? `📂 Kategori: *${catName}*\n\n❌ Tiada produk tersedia dalam kategori ini.`
+      : `📂 Category: *${catName}*\n\n❌ No products available in this category.`;
 
     await safeEditMessage(ctx, message, {
       parse_mode: 'Markdown',
@@ -78,8 +85,8 @@ async function handleCategory(ctx, categoryId) {
 
   // Generate product list message
   let message = lang === 'ms'
-    ? `📂 Kategori: *${category.name}*\n\nSilih pilih produk:\n\n`
-    : `📂 Category: *${category.name}*\n\nPlease select a product:\n\n`;
+    ? `📂 Kategori: *${catName}*\n\nSilih pilih produk:\n\n`
+    : `📂 Category: *${catName}*\n\nPlease select a product:\n\n`;
 
   const buttons = [];
 
