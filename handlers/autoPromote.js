@@ -220,14 +220,14 @@ async function handleDiscountCodes(ctx) {
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
 
-  const discounts = await db.getDiscountCodes();
+  const discounts = await db.getVouchers();
 
   const message = lang === 'en'
-    ? `💰 *Discount Codes*\n\nActive Codes: ${discounts.length}\n\nCreate: /creatediscount [code] [percentage] [maxUses]\nExample: /creatediscount SAVE20 20 100`
-    : `💰 *Kod Diskaun*\n\nKod Aktif: ${discounts.length}\n\nBuat: /creatediscount [kod] [peratusan] [maksPenggunaan]\nContoh: /creatediscount JIMAT20 20 100`;
+    ? `💰 *Discount Codes (Vouchers)*\n\nActive Codes: ${discounts.length}\n\nCreate: /creatediscount [code] [percentage] [maxUses]\nExample: /creatediscount SAVE20 20 100`
+    : `💰 *Kod Diskaun (Baucher)*\n\nKod Aktif: ${discounts.length}\n\nBuat: /creatediscount [kod] [peratusan] [maksPenggunaan]\nContoh: /creatediscount JIMAT20 20 100`;
 
   const keyboard = discounts.slice(0, 5).map(d => [
-    { text: `${d.code} - ${d.percentage}% (${d.used || 0}/${d.maxUses})`, callback_data: `view_discount_${d.code}` }
+    { text: `${d.code} - ${d.value}% (${d.usedCount || 0}/${d.maxUses})`, callback_data: `view_discount_${d.code}` }
   ]);
 
   keyboard.push([{ text: lang === 'en' ? '🔙 Back' : '🔙 Kembali', callback_data: 'promo_panel' }]);
@@ -699,7 +699,7 @@ async function handleViewDiscount(ctx, discountCode) {
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
 
-  const discounts = await db.getDiscountCodes();
+  const discounts = await db.getVouchers();
   const discount = discounts.find(d => d.code === discountCode);
 
   if (!discount) {
@@ -708,8 +708,8 @@ async function handleViewDiscount(ctx, discountCode) {
   }
 
   const message = lang === 'en'
-    ? `💰 *Discount Code: ${discount.code}*\n\n💵 Discount: ${discount.percentage}%\n📊 Used: ${discount.used || 0}/${discount.maxUses}\n📅 Created: ${discount.created || 'N/A'}\n⏰ Expires: ${discount.expires || 'Never'}\n\nStatus: ${discount.used >= discount.maxUses ? '❌ Exhausted' : '✅ Active'}`
-    : `💰 *Kod Diskaun: ${discount.code}*\n\n💵 Diskaun: ${discount.percentage}%\n📊 Digunakan: ${discount.used || 0}/${discount.maxUses}\n📅 Dicipta: ${discount.created || 'N/A'}\n⏰ Luput: ${discount.expires || 'Tidak'}\n\nStatus: ${discount.used >= discount.maxUses ? '❌ Habis' : '✅ Aktif'}`;
+    ? `💰 *Discount Code: ${discount.code}*\n\n💵 Discount: ${discount.value}%\n📊 Used: ${discount.usedCount || 0}/${discount.maxUses}\n📅 Created: ${discount.created || 'N/A'}\n⏰ Expires: ${discount.expires || 'Never'}\n\nStatus: ${discount.usedCount >= discount.maxUses ? '❌ Exhausted' : '✅ Active'}`
+    : `💰 *Kod Diskaun: ${discount.code}*\n\n💵 Diskaun: ${discount.value}%\n📊 Digunakan: ${discount.usedCount || 0}/${discount.maxUses}\n📅 Dicipta: ${discount.created || 'N/A'}\n⏰ Luput: ${discount.expires || 'Tidak'}\n\nStatus: ${discount.usedCount >= discount.maxUses ? '❌ Habis' : '✅ Aktif'}`;
 
   await ctx.reply(message, {
     parse_mode: 'Markdown',
@@ -1020,7 +1020,7 @@ async function handleCreateDiscount(ctx) {
     return;
   }
 
-  const discounts = await db.getDiscountCodes();
+  const discounts = await db.getVouchers();
 
   const existing = discounts.find(d => d.code === code);
   if (existing) {
@@ -1031,18 +1031,23 @@ async function handleCreateDiscount(ctx) {
     return;
   }
 
+  const { generateId } = require('../utils/helpers');
   const newDiscount = {
+    id: generateId('VOUCH'),
     code,
-    percentage,
+    value: percentage, // Unified to match voucher schema
+    type: 'percentage',
     maxUses,
-    used: 0,
+    usedCount: 0,
+    usedBy: [],
+    expiryDate: null,
     createdBy: userId,
     createdAt: new Date().toISOString(),
     active: true
   };
 
   discounts.push(newDiscount);
-  await db.saveDiscountCodes(discounts);
+  await db.saveVouchers(discounts);
 
   const successMsg = lang === 'en'
     ? `✅ Discount code created successfully!\n\n💰 Code: ${code}\n📊 Discount: ${percentage}%\n🎯 Max Uses: ${maxUses}\n📈 Used: 0/${maxUses}\n\nShare this code with your customers!`
@@ -1187,6 +1192,45 @@ async function handleRepeatCampaign(ctx) {
   await ctx.reply(successMsg);
 }
 
+async function handleDeleteDiscount(ctx) {
+  const userId = ctx.from.id;
+  if (!await isAdmin(userId)) return;
+
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+
+  const discountCode = ctx.match[1]; // Get code from regex match
+  const vouchers = await db.getVouchers();
+  const index = vouchers.findIndex(v => v.code === discountCode);
+
+  /*
+  if (index === -1) {
+    const errorMsg = lang === 'en' ? '❌ Discount code not found' : '❌ Kod diskaun tidak dijumpai';
+    await ctx.answerCbQuery(errorMsg);
+    return;
+  }
+  */
+
+  if (index !== -1) {
+    vouchers.splice(index, 1);
+    await db.saveVouchers(vouchers);
+  }
+
+  const message = lang === 'en'
+    ? `✅ Discount code *${discountCode}* deleted successfully!`
+    : `✅ Kod diskaun *${discountCode}* berjaya dipadam!`;
+
+  await ctx.answerCbQuery();
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: lang === 'en' ? '🔙 Back' : '🔙 Kembali', callback_data: 'promo_discounts' }]
+      ]
+    }
+  });
+}
+
 module.exports = {
   handleAutoPromotePanel,
   handleCreateBroadcast,
@@ -1213,6 +1257,7 @@ module.exports = {
   handleViewSchedule,
   handleUsePromoTemplate,
   handleViewDiscount,
+  handleDeleteDiscount,
   handleViewFlash,
   handleViewRepeat,
   handleScheduleMsg,

@@ -233,6 +233,20 @@ async function handleAdminOrders(ctx) {
 }
 
 const processingOrders = new Set();
+const productLocks = new Map(); // Lock for product stock updates
+
+// Lock helper
+const acquireProductLock = async (productId) => {
+  if (!productLocks.has(productId)) {
+    productLocks.set(productId, Promise.resolve());
+  }
+  let release;
+  const lock = new Promise(resolve => release = resolve);
+  const previousLock = productLocks.get(productId);
+  productLocks.set(productId, lock);
+  await previousLock;
+  return release;
+};
 
 async function handleVerifyOrder(ctx, orderId) {
   const userId = ctx.from.id;
@@ -251,9 +265,10 @@ async function handleVerifyOrder(ctx, orderId) {
   // Lock the order immediately
   processingOrders.add(orderId);
 
+  let releaseLock = null;
+
   try {
     // FETCH FRESH DATA INSIDE THE LOCK
-    // This ensures we see the latest status even if another admin just verified it
     const order = await db.getTransaction(orderId);
 
     if (!order) {
@@ -261,7 +276,6 @@ async function handleVerifyOrder(ctx, orderId) {
       return;
     }
 
-    // Check if already processed
     if (order.status === 'completed' || order.status === 'verified') {
       await ctx.reply(`⚠️ Order ${orderId} is already verified!`);
       return;
@@ -271,7 +285,6 @@ async function handleVerifyOrder(ctx, orderId) {
       return;
     }
 
-    // Layer 3: Block verify if no payment proof attached
     if (!order.paymentProof) {
       await ctx.reply(
         `🚫 *Tidak Boleh Verify!*\n\n` +
@@ -282,21 +295,12 @@ async function handleVerifyOrder(ctx, orderId) {
       );
       return;
     }
-    // Proceed with verification... logic continues below
-    // We need to ensure we unlock in finally block.
-    // Since I am replacing only the top part, I can't easily add try/finally block around the whole function body without replacing the whole function.
-    // I will use a helper approach or just replace more content.
-    // Let's replace the top part and then I'll wrap the bottom part in another edit? No, that's messy.
-    // I'll replace the WHOLE function body to wrap it in try/finally.
-    // But the function is long.
 
-    // Alternative: just use the lock and release it before every return or at end.
-    // But if it crashes, lock stays. That's bad.
+    // Critical Section: Stock Update
+    // Acquire lock on productId to prevent race conditions
+    releaseLock = await acquireProductLock(order.productId);
 
-    // I MUST use try/finally.
-    // I will read the whole function first to replace it safely.
-
-
+    // Re-fetch product inside the lock
     const products = await db.getProducts();
     const product = products.find(p => p.id === order.productId);
 
@@ -305,9 +309,8 @@ async function handleVerifyOrder(ctx, orderId) {
       return;
     }
 
-    // Check delivery type
+    // Check delivery type and stock
     if (product.deliveryType === 'auto') {
-      // Auto delivery: pop item from product.items[] and send to customer
       if (!product.items || product.items.length === 0) {
         await ctx.reply(
           `❌ Cannot verify order ${orderId}!\n\n` +
@@ -319,12 +322,9 @@ async function handleVerifyOrder(ctx, orderId) {
         return;
       }
 
-      // Pop the first item
       const deliveredItem = product.items.shift();
       product.stock = product.items.length;
       await db.updateProduct(product.id, { items: product.items, stock: product.stock });
-
-      // Set delivered item on the order
       order.deliveredItem = deliveredItem;
 
       await ctx.reply(
@@ -334,7 +334,6 @@ async function handleVerifyOrder(ctx, orderId) {
         `📊 Remaining stock: ${product.stock} items`
       );
     } else {
-      // Manual delivery - reduce stock
       if (product.stock > 0) {
         product.stock -= 1;
         await db.updateProduct(product.id, { stock: product.stock });
@@ -383,7 +382,6 @@ async function handleVerifyOrder(ctx, orderId) {
       let verifyMsg;
 
       if (order.deliveredItem) {
-        // SCENARIO: Auto-delivery (Item exists)
         if (lang === 'ms') {
           verifyMsg = `═══════════════════\n` +
             `🧾 *RESIT PEMBELIAN*\n` +
@@ -414,7 +412,6 @@ async function handleVerifyOrder(ctx, orderId) {
             `📋 View again in "My Items" from the main menu.`;
         }
       } else {
-        // SCENARIO: Manual Delivery (Item pending)
         if (lang === 'ms') {
           verifyMsg = `═══════════════════\n` +
             `🧾 *RESIT PEMBELIAN*\n` +
@@ -456,12 +453,9 @@ async function handleVerifyOrder(ctx, orderId) {
       console.error('Failed to notify customer:', error.message);
     }
 
-    // New: Send Notification to Channel
-    // Fetch setting from DB first, then fallback to env
     const settings = await db.getSettings();
     const channelId = settings.transaction_channel_id || process.env.TRANSACTION_CHANNEL_ID;
 
-    // Helper to escape HTML characters (More robust than Markdown)
     const escapeHtml = (str) => {
       if (!str) return '';
       return String(str)
@@ -476,7 +470,6 @@ async function handleVerifyOrder(ctx, orderId) {
       try {
         const dateStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
 
-        // Escape all dynamic fields to prevent HTML injection/errors
         const cleanUserId = escapeHtml(order.userId);
         const cleanProductId = escapeHtml(order.productId);
         const cleanProductName = escapeHtml(order.productName?.ms || order.productName || 'Product');
@@ -501,7 +494,6 @@ async function handleVerifyOrder(ctx, orderId) {
 <b>TESTIMONI</b>: @cexistore_testi
 ━━━━━━━━━━━━━━━━━━`;
 
-        // Inline Button "🛒 ORDER SEKARANG" linking to the bot
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.url('🛒 ORDER SEKARANG', `https://t.me/${ctx.botInfo.username}`)]
         ]);
@@ -514,7 +506,6 @@ async function handleVerifyOrder(ctx, orderId) {
 
     await notifyNextInQueue(ctx);
 
-    // Remove buttons from admin message to prevent confusion
     if (ctx.callbackQuery) {
       try {
         await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
@@ -526,9 +517,11 @@ async function handleVerifyOrder(ctx, orderId) {
     console.error(`Error verifying order ${orderId}:`, error);
     await ctx.reply(`❌ Verification error: ${error.message}`);
   } finally {
-    processingOrders.delete(orderId);
+    if (releaseLock) releaseLock(); // Release product lock
+    processingOrders.delete(orderId); // Release order lock
   }
 }
+
 
 async function handleRejectOrder(ctx, orderId) {
   const userId = ctx.from.id;

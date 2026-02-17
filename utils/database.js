@@ -363,12 +363,14 @@ class Database {
   async getAdmins() {
     // Special case: admins.json structure was { owner: ..., admins: [] }
     // DB table: user_id, role.
-    // We need to reconstruct the object.
     const { data, error } = await supabase.from('cexi_admins').select('*');
-    if (error) return { owner: null, admins: [] };
+    if (error || !data) return { owner: null, admins: [] };
 
-    const owner = data.find(r => r.role === 'owner')?.user_id;
-    const adminIds = data.filter(r => r.role === 'admin').map(r => r.user_id);
+    // Robust handling: find owner, filter admins, filter nulls
+    const owner = data.find(r => r.role === 'owner')?.user_id || null;
+    const adminIds = data
+      .filter(r => r.role === 'admin' && r.user_id)
+      .map(r => r.user_id);
 
     return { owner, admins: adminIds };
   }
@@ -470,9 +472,7 @@ class Database {
   async getPromoTemplates() { return await this.getAll('cexi_promo_templates'); }
   async savePromoTemplates(templates) { return await this.syncTable('cexi_promo_templates', templates); }
 
-  // --- Discount Codes ---
-  async getDiscountCodes() { return await this.getAll('cexi_discount_codes'); }
-  async saveDiscountCodes(codes) { return await this.syncTable('cexi_discount_codes', codes, 'code'); }
+
 
   // --- Flash Sales ---
   async getFlashSales() { return await this.getAll('cexi_flash_sales'); }

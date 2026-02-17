@@ -825,6 +825,73 @@ async function handleToggleMaintenance(ctx) {
   await handleMaintenanceMode(ctx);
 }
 
+// --- NEW IMPLEMENTATIONS ---
+
+async function handleEditSystemSettings(ctx) {
+  const userId = ctx.from.id;
+  if (!await isOwner(userId)) return;
+
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+
+  const message = lang === 'en'
+    ? `✏️ *Edit System Settings*\n\nTo change settings, you can edit the \`config.js\` file directly or use future advanced commands.\n\nCurrently, you can toggle:\n• Store Status (Open/Close)\n• Maintenance Mode\n\nFor currency or language changes, please contact the developer or edit the source code.`
+    : `✏️ *Edit Tetapan Sistem*\n\nUntuk tukar tetapan, anda boleh edit fail \`config.js\` terus atau guna arahan lanjutan masa depan.\n\nBuat masa ini, anda boleh tukar:\n• Status Kedai (Buka/Tutup)\n• Mod Penyelenggaraan\n\nUntuk tukar matawang atau bahasa, sila hubungi developer atau edit kod sumber.`;
+
+  await ctx.answerCbQuery();
+  await ctx.reply(message, { parse_mode: 'Markdown' });
+}
+
+async function handleClearAdminLogs(ctx) {
+  const userId = ctx.from.id;
+  if (!await isOwner(userId)) return;
+
+  // We need to implement clearAdminLogs in adminLogger.js first? 
+  // Wait, I saw it imported: const { logAdminAction, getAdminLogs, clearAdminLogs } = require('../utils/adminLogger');
+  // So it exists.
+
+  await clearAdminLogs();
+  await ctx.answerCbQuery('Logs cleared');
+  await handleAdminLogs(ctx);
+}
+
+async function handleCleanBackups(ctx) {
+  const userId = ctx.from.id;
+  if (!await isOwner(userId)) return;
+
+  const backupDir = path.join(__dirname, '..', 'data', 'backup');
+  let deletedCount = 0;
+
+  if (fs.existsSync(backupDir)) {
+    const files = fs.readdirSync(backupDir);
+    // Keep last 5 backups
+    if (files.length > 5) {
+      // Sort by time (assuming names have timestamps or we check mtime)
+      // Actually names are likely `backup-YYYY-MM-DD...`
+      const sortedFiles = files.map(f => ({
+        name: f,
+        time: fs.statSync(path.join(backupDir, f)).mtime.getTime()
+      })).sort((a, b) => b.time - a.time); // Newest first
+
+      for (let i = 5; i < sortedFiles.length; i++) {
+        fs.unlinkSync(path.join(backupDir, sortedFiles[i].name));
+        deletedCount++;
+      }
+    }
+  }
+
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+
+  const message = lang === 'en'
+    ? `✅ *Backups Cleaned*\n\nDeleted ${deletedCount} old backup files.\nKept the 5 most recent backups.`
+    : `✅ *Backup Dibersihkan*\n\nMemadam ${deletedCount} fail backup lama.\nMenyimpan 5 backup terkini.`;
+
+  await ctx.answerCbQuery('Cleaned');
+  await ctx.reply(message, { parse_mode: 'Markdown' });
+  await handleStorageUsage(ctx);
+}
+
 module.exports = {
   handleSystemPanel,
   handleUserStats,
@@ -853,5 +920,99 @@ module.exports = {
   handleExportAll,
   handleStoreStatus,
   handleToggleStoreStatus,
-  handleToggleMaintenance
+  handleToggleMaintenance,
+  // New exports
+  handleEditSystemSettings,
+  handleClearAdminLogs,
+  handleCleanBackups,
+  handleDetailedSalesReport,
+  handleProcessImport
 };
+
+async function handleDetailedSalesReport(ctx) {
+  const userId = ctx.from.id;
+  if (!await isOwner(userId)) return;
+
+  const user = await db.getUser(userId);
+  const lang = user?.language || 'ms';
+
+  const transactions = await db.getTransactions();
+  const completed = transactions.filter(t => t.status === 'completed');
+
+  // Group by product
+  const productStats = {};
+  completed.forEach(t => {
+    const prodName = t.productName?.ms || t.productName || 'Unknown';
+    if (!productStats[prodName]) {
+      productStats[prodName] = { count: 0, revenue: 0 };
+    }
+    productStats[prodName].count++;
+    productStats[prodName].revenue += (t.price || 0);
+  });
+
+  let report = lang === 'en'
+    ? `📊 *Detailed Sales Report*\n\n`
+    : `📊 *Laporan Jualan Terperinci*\n\n`;
+
+  const sortedProducts = Object.entries(productStats).sort((a, b) => b.1.revenue - a.1.revenue);
+
+  if (sortedProducts.length === 0) {
+    report += lang === 'en' ? 'No sales data available.' : 'Tiada data jualan.';
+  } else {
+    sortedProducts.forEach(([name, stats]) => {
+      report += `📦 *${name}*\n`;
+      report += `🛒 Sold: ${stats.count} | 💰 Rev: ${config.store.currency}${stats.revenue.toFixed(2)}\n\n`;
+    });
+  }
+
+  await ctx.answerCbQuery();
+  await ctx.reply(report, { parse_mode: 'Markdown' });
+}
+
+async function handleProcessImport(ctx) {
+  const userId = ctx.from.id;
+  if (!await isOwner(userId)) return;
+
+  const document = ctx.message.document;
+  const fileId = document.file_id;
+
+  try {
+    const fileLink = await ctx.telegram.getFileLink(fileId);
+    const response = await fetch(fileLink.href);
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      await ctx.reply('❌ Invalid format. File must contain a JSON array.');
+      return;
+    }
+
+    // Determine type based on content or caption
+    const caption = ctx.message.caption?.toLowerCase() || '';
+    let importType = '';
+    let successCount = 0;
+
+    if (caption.includes('products')) {
+      importType = 'Products';
+      const existing = await db.getProducts();
+      // Merge logic: valid products only
+      const validNew = data.filter(p => p.id && p.name && p.price);
+      await db.saveProducts([...existing, ...validNew]);
+      successCount = validNew.length;
+    } else if (caption.includes('users')) {
+      importType = 'Users';
+      const existing = await db.getUsers();
+      const validNew = data.filter(u => u.id); // minimal validation
+      await db.saveUsers([...existing, ...validNew]);
+      successCount = validNew.length;
+    } else {
+      await ctx.reply('❌ Please specify type in caption: `/import products` or `/import users`');
+      return;
+    }
+
+    await ctx.reply(`✅ Imported ${successCount} ${importType} successfully!`);
+
+  } catch (error) {
+    console.error('Import error:', error);
+    await ctx.reply(`❌ Import failed: ${error.message}`);
+  }
+}

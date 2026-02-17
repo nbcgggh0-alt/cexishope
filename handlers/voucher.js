@@ -5,17 +5,17 @@ const { t } = require('../utils/translations');
 async function handleCreateVoucher(ctx) {
   const { isAdmin } = require('./admin');
   const userId = ctx.from.id;
-  
+
   if (!await isAdmin(userId)) {
     await ctx.reply('❌ Unauthorized / Tidak dibenarkan');
     return;
   }
-  
+
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
-  
+
   const input = ctx.message.text.replace('/createvoucher', '').trim();
-  
+
   if (!input) {
     const message = lang === 'ms'
       ? `🎫 *Buat Baucher Baru*
@@ -46,13 +46,13 @@ Example:
 • Discount%: Discount percentage (1-99)
 • Max Uses: Maximum number of uses
 • Expiry: Expiry date (optional, format: YYYY-MM-DD)`;
-    
+
     await ctx.reply(message, { parse_mode: 'Markdown' });
     return;
   }
-  
+
   const parts = input.split('|').map(p => p.trim());
-  
+
   if (parts.length < 3) {
     const message = lang === 'ms'
       ? '❌ Format tidak sah. Sila berikan semua maklumat yang diperlukan.'
@@ -60,12 +60,12 @@ Example:
     await ctx.reply(message);
     return;
   }
-  
+
   const code = parts[0].toUpperCase();
   const discount = parseInt(parts[1]);
   const maxUses = parseInt(parts[2]);
   const expiryDate = parts[3] || null;
-  
+
   if (!code || code.length < 3) {
     const message = lang === 'ms'
       ? '❌ Kod baucher mesti sekurang-kurangnya 3 aksara.'
@@ -73,7 +73,7 @@ Example:
     await ctx.reply(message);
     return;
   }
-  
+
   if (isNaN(discount) || discount < 1 || discount > 99) {
     const message = lang === 'ms'
       ? '❌ Diskaun mesti antara 1% hingga 99%.'
@@ -81,7 +81,7 @@ Example:
     await ctx.reply(message);
     return;
   }
-  
+
   if (isNaN(maxUses) || maxUses < 1) {
     const message = lang === 'ms'
       ? '❌ Bilangan maksimum penggunaan mesti sekurang-kurangnya 1.'
@@ -89,9 +89,9 @@ Example:
     await ctx.reply(message);
     return;
   }
-  
+
   const vouchers = await db.getVouchers();
-  
+
   const existing = vouchers.find(v => v.code.toUpperCase() === code);
   if (existing) {
     const message = lang === 'ms'
@@ -100,7 +100,7 @@ Example:
     await ctx.reply(message);
     return;
   }
-  
+
   const newVoucher = {
     id: generateId('VOUCH'),
     code: code,
@@ -114,14 +114,14 @@ Example:
     createdAt: new Date().toISOString(),
     active: true
   };
-  
+
   vouchers.push(newVoucher);
   await db.saveVouchers(vouchers);
-  
-  const expiryText = expiryDate 
+
+  const expiryText = expiryDate
     ? (lang === 'ms' ? `\n📅 Tamat: ${expiryDate}` : `\n📅 Expires: ${expiryDate}`)
     : '';
-  
+
   const message = lang === 'ms'
     ? `✅ *Baucher Berjaya Dibuat!*
 
@@ -141,7 +141,7 @@ Customer boleh guna kod ini dengan command:
 
 Customers can use this code with command:
 \`/redeem ${code}\``;
-  
+
   await ctx.reply(message, { parse_mode: 'Markdown' });
 }
 
@@ -149,9 +149,9 @@ async function handleRedeemVoucher(ctx) {
   const userId = ctx.from.id;
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
-  
+
   const code = ctx.message.text.replace('/redeem', '').trim().toUpperCase();
-  
+
   if (!code) {
     const message = lang === 'ms'
       ? `🎫 *Cara Guna Baucher*
@@ -184,13 +184,13 @@ Example:
 4️⃣ Discount will be applied automatically at checkout
 
 💡 Note: Voucher codes are not case-sensitive`;
-    
+
     await ctx.reply(message, { parse_mode: 'Markdown' });
     return;
   }
-  
+
   const voucher = await db.getVoucher(code);
-  
+
   if (!voucher) {
     const message = lang === 'ms'
       ? `❌ Kod baucher tidak sah atau tidak wujud.
@@ -209,11 +209,11 @@ Please ensure:
 • No typos in the code
 
 Please get a valid voucher code from admin.`;
-    
+
     await ctx.reply(message);
     return;
   }
-  
+
   if (!voucher.active) {
     const message = lang === 'ms'
       ? '❌ Baucher ini tidak aktif lagi. Sila hubungi admin untuk maklumat lanjut.'
@@ -221,7 +221,7 @@ Please get a valid voucher code from admin.`;
     await ctx.reply(message);
     return;
   }
-  
+
   if (voucher.expiryDate) {
     const expiryDate = new Date(voucher.expiryDate);
     const now = new Date();
@@ -233,7 +233,7 @@ Please get a valid voucher code from admin.`;
       return;
     }
   }
-  
+
   if (voucher.usedCount >= voucher.maxUses) {
     const message = lang === 'ms'
       ? '❌ Baucher ini telah mencapai had maksimum penggunaan.'
@@ -241,7 +241,7 @@ Please get a valid voucher code from admin.`;
     await ctx.reply(message);
     return;
   }
-  
+
   if (voucher.usedBy && voucher.usedBy.includes(userId)) {
     const message = lang === 'ms'
       ? '❌ Anda telah menggunakan baucher ini sebelum ini. Setiap user hanya boleh guna sekali sahaja.'
@@ -249,9 +249,9 @@ Please get a valid voucher code from admin.`;
     await ctx.reply(message);
     return;
   }
-  
+
   await db.updateUser(userId, { activeVoucher: code });
-  
+
   const message = lang === 'ms'
     ? `✅ *Baucher Berjaya Ditebus!*
 
@@ -269,24 +269,24 @@ Baucher ini akan digunakan pada order seterusnya anda. Diskaun akan ditolak auto
 This voucher will be used on your next order. Discount will be applied automatically at checkout.
 
 🛒 Click "Buy Products" button to start shopping!`;
-  
+
   await ctx.reply(message, { parse_mode: 'Markdown' });
 }
 
 async function handleListVouchers(ctx) {
   const { isAdmin } = require('./admin');
   const userId = ctx.from.id;
-  
+
   if (!await isAdmin(userId)) {
     await ctx.reply('❌ Unauthorized / Tidak dibenarkan');
     return;
   }
-  
+
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
-  
+
   const vouchers = await db.getVouchers();
-  
+
   if (vouchers.length === 0) {
     const message = lang === 'ms'
       ? '📋 Tiada baucher dijumpai. Gunakan /createvoucher untuk buat baucher baru.'
@@ -294,40 +294,40 @@ async function handleListVouchers(ctx) {
     await ctx.reply(message);
     return;
   }
-  
+
   let message = lang === 'ms'
     ? '🎫 *SENARAI BAUCHER*\n\n'
     : '🎫 *VOUCHER LIST*\n\n';
-  
+
   vouchers.forEach((v, index) => {
     const status = v.active ? '✅' : '❌';
     const expiryText = v.expiryDate ? ` | ${lang === 'ms' ? 'Tamat' : 'Expires'}: ${v.expiryDate}` : '';
-    
+
     message += `${index + 1}. ${status} \`${v.code}\`\n`;
     message += `   💰 ${v.value}% | 📊 ${v.usedCount}/${v.maxUses}${expiryText}\n\n`;
   });
-  
+
   message += lang === 'ms'
     ? '\n💡 Gunakan /togglevoucher [kod] untuk aktif/nyahaktif baucher'
     : '\n💡 Use /togglevoucher [code] to activate/deactivate voucher';
-  
+
   await ctx.reply(message, { parse_mode: 'Markdown' });
 }
 
 async function handleToggleVoucher(ctx) {
   const { isAdmin } = require('./admin');
   const userId = ctx.from.id;
-  
+
   if (!await isAdmin(userId)) {
     await ctx.reply('❌ Unauthorized / Tidak dibenarkan');
     return;
   }
-  
+
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
-  
+
   const code = ctx.message.text.replace('/togglevoucher', '').trim().toUpperCase();
-  
+
   if (!code) {
     const message = lang === 'ms'
       ? 'Format: /togglevoucher [kod]\n\nContoh: /togglevoucher JIMAT50'
@@ -335,10 +335,10 @@ async function handleToggleVoucher(ctx) {
     await ctx.reply(message);
     return;
   }
-  
+
   const vouchers = await db.getVouchers();
   const voucher = vouchers.find(v => v.code.toUpperCase() === code);
-  
+
   if (!voucher) {
     const message = lang === 'ms'
       ? '❌ Baucher tidak dijumpai.'
@@ -346,18 +346,18 @@ async function handleToggleVoucher(ctx) {
     await ctx.reply(message);
     return;
   }
-  
+
   voucher.active = !voucher.active;
   await db.saveVouchers(vouchers);
-  
+
   const status = voucher.active
     ? (lang === 'ms' ? 'AKTIF' : 'ACTIVE')
     : (lang === 'ms' ? 'TIDAK AKTIF' : 'INACTIVE');
-  
+
   const message = lang === 'ms'
     ? `✅ Baucher \`${code}\` kini ${status}`
     : `✅ Voucher \`${code}\` is now ${status}`;
-  
+
   await ctx.reply(message, { parse_mode: 'Markdown' });
 }
 
@@ -365,7 +365,7 @@ async function handleCheckVoucher(ctx) {
   const userId = ctx.from.id;
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
-  
+
   if (!user.activeVoucher) {
     const message = lang === 'ms'
       ? `❌ Anda tiada baucher aktif sekarang.
@@ -378,13 +378,13 @@ Contoh: \`/redeem JIMAT50\``
 Use \`/redeem [CODE]\` to redeem a voucher.
 
 Example: \`/redeem SAVE50\``;
-    
+
     await ctx.reply(message, { parse_mode: 'Markdown' });
     return;
   }
-  
+
   const voucher = await db.getVoucher(user.activeVoucher);
-  
+
   if (!voucher || !voucher.active) {
     await db.updateUser(userId, { activeVoucher: null });
     const message = lang === 'ms'
@@ -393,11 +393,11 @@ Example: \`/redeem SAVE50\``;
     await ctx.reply(message);
     return;
   }
-  
+
   const expiryText = voucher.expiryDate
     ? (lang === 'ms' ? `\n📅 Tamat: ${voucher.expiryDate}` : `\n📅 Expires: ${voucher.expiryDate}`)
     : '';
-  
+
   const message = lang === 'ms'
     ? `✅ *Baucher Aktif Anda*
 
@@ -411,24 +411,25 @@ Baucher ini akan digunakan pada order seterusnya anda.`
 💰 Discount: ${voucher.value}%${expiryText}
 
 This voucher will be used on your next order.`;
-  
+
   await ctx.reply(message, { parse_mode: 'Markdown' });
 }
 
-async function applyVoucherToOrder(userId, totalAmount) {
+async function applyVoucherToOrder(userId, totalAmount, consume = false) {
   const user = await db.getUser(userId);
-  
+
   if (!user || !user.activeVoucher) {
     return { finalAmount: totalAmount, discount: 0, voucherCode: null };
   }
-  
+
   const voucher = await db.getVoucher(user.activeVoucher);
-  
+
+  // Validation checks - if invalid, remove from user
   if (!voucher || !voucher.active) {
     await db.updateUser(userId, { activeVoucher: null });
     return { finalAmount: totalAmount, discount: 0, voucherCode: null };
   }
-  
+
   if (voucher.expiryDate) {
     const expiryDate = new Date(voucher.expiryDate);
     const now = new Date();
@@ -437,34 +438,38 @@ async function applyVoucherToOrder(userId, totalAmount) {
       return { finalAmount: totalAmount, discount: 0, voucherCode: null };
     }
   }
-  
+
   if (voucher.usedCount >= voucher.maxUses) {
     await db.updateUser(userId, { activeVoucher: null });
     return { finalAmount: totalAmount, discount: 0, voucherCode: null };
   }
-  
+
   if (voucher.usedBy && voucher.usedBy.includes(userId)) {
     await db.updateUser(userId, { activeVoucher: null });
     return { finalAmount: totalAmount, discount: 0, voucherCode: null };
   }
-  
+
+  // Calculate discount
   const discountAmount = (totalAmount * voucher.value) / 100;
   const finalAmount = totalAmount - discountAmount;
-  
-  const vouchers = await db.getVouchers();
-  const voucherIndex = vouchers.findIndex(v => v.code.toUpperCase() === voucher.code.toUpperCase());
-  
-  if (voucherIndex !== -1) {
-    vouchers[voucherIndex].usedCount += 1;
-    if (!vouchers[voucherIndex].usedBy) {
-      vouchers[voucherIndex].usedBy = [];
+
+  // Only consume if flag is true
+  if (consume) {
+    const vouchers = await db.getVouchers();
+    const voucherIndex = vouchers.findIndex(v => v.code.toUpperCase() === voucher.code.toUpperCase());
+
+    if (voucherIndex !== -1) {
+      vouchers[voucherIndex].usedCount += 1;
+      if (!vouchers[voucherIndex].usedBy) {
+        vouchers[voucherIndex].usedBy = [];
+      }
+      vouchers[voucherIndex].usedBy.push(userId);
+      await db.saveVouchers(vouchers);
     }
-    vouchers[voucherIndex].usedBy.push(userId);
-    await db.saveVouchers(vouchers);
+
+    await db.updateUser(userId, { activeVoucher: null });
   }
-  
-  await db.updateUser(userId, { activeVoucher: null });
-  
+
   return {
     finalAmount: finalAmount,
     discount: discountAmount,

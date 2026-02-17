@@ -1,3 +1,16 @@
+const { getDiscountedPrice } = require('./categoryDiscounts'); // Import helper
+
+async function handleBuyProducts(ctx) {
+  // ... existing code ...
+}
+
+// ... existing handleCategory ... 
+// I will update handleCategory in a separate chunk to avoid too large context or confusion, 
+// strictly creating the import first + handleProductView logic.
+
+// Actually, let's just do the import at top and update handleProductView first.
+// But wait, replace_file_content is better with smaller chunks.
+// Let's add the import first.
 const { Markup } = require('telegraf');
 const db = require('../utils/database');
 const { t } = require('../utils/translations');
@@ -8,99 +21,9 @@ const { getPriceDisplay, convertPrice, formatPrice } = require('../utils/currenc
 const fs = require('fs').promises;
 const path = require('path');
 const { escapeMarkdown } = require('../utils/security'); // Security Utils
+const { getDiscountedPrice } = require('./categoryDiscounts'); // Added import
 
-async function handleBuyProducts(ctx) {
-  const userId = ctx.from.id;
-  const user = await db.getUser(userId);
-  const lang = user?.language || 'ms';
-  const userCurrency = user?.currency || 'MYR';
-
-  const categories = await db.getCategories();
-
-  if (categories.length === 0) {
-    await safeEditMessage(ctx, t('noProducts', lang), {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback(t('btnBack', lang), 'main_menu')]
-      ])
-    });
-    return;
-  }
-
-  const buttons = categories.map(cat => [
-    Markup.button.callback(`${cat.icon || '📦'} ${cat.name[lang] || cat.name['ms']}`, `cat_${cat.id}`)
-  ]);
-
-  buttons.push([Markup.button.callback(t('btnBack', lang), 'main_menu')]);
-
-  await safeEditMessage(ctx, t('selectCategory', lang), {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard(buttons)
-  });
-}
-
-async function handleCategory(ctx, categoryId, page = 0) {
-  const userId = ctx.from.id;
-  const user = await db.getUser(userId);
-  const lang = user?.language || 'ms';
-  const userCurrency = user?.currency || 'MYR';
-
-  const products = await db.getProducts();
-  const categories = await db.getCategories();
-  const category = categories.find(c => c.id === categoryId);
-  const categoryProducts = products.filter(p => p.categoryId === categoryId && p.active && p.stock > 0);
-
-  if (categoryProducts.length === 0) {
-    await safeEditMessage(ctx, t('noProducts', lang), {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback(t('btnBack', lang), 'buy_products')]
-      ])
-    });
-    return;
-  }
-
-  const categoryName = category ? (category.name[lang] || category.name['ms']) : 'Category';
-  const categoryIcon = category?.icon || '📦';
-
-  // Pagination settings
-  const ITEMS_PER_PAGE = 5;
-  const totalPages = Math.ceil(categoryProducts.length / ITEMS_PER_PAGE);
-  const currentPage = Math.max(0, Math.min(page, totalPages - 1));
-  const startIndex = currentPage * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const pageProducts = categoryProducts.slice(startIndex, endIndex);
-
-  let headerText = lang === 'ms'
-    ? `${categoryIcon} *${escapeMarkdown(categoryName)}*\n\n📊 ${categoryProducts.length} produk tersedia | Halaman ${currentPage + 1}/${totalPages}\n\n`
-    : `${categoryIcon} *${escapeMarkdown(categoryName)}*\n\n📊 ${categoryProducts.length} products available | Page ${currentPage + 1}/${totalPages}\n\n`;
-
-  const buttons = await Promise.all(pageProducts.map(async prod => {
-    const stockIndicator = prod.stock < 5 ? ' ⚠️' : '';
-    const priceDisplay = await getPriceDisplay(prod.price, userCurrency);
-    return [Markup.button.callback(`${prod.name[lang] || prod.name['ms']} - ${priceDisplay}${stockIndicator}`, `prod_${prod.id}`)];
-  }));
-
-  // Add pagination buttons
-  const navButtons = [];
-  if (currentPage > 0) {
-    navButtons.push(Markup.button.callback(lang === 'ms' ? '⬅️ Sebelum' : '⬅️ Back', `catpage_${categoryId}_${currentPage - 1}`));
-  }
-  if (currentPage < totalPages - 1) {
-    navButtons.push(Markup.button.callback(lang === 'ms' ? 'Seterus ➡️' : 'Next ➡️', `catpage_${categoryId}_${currentPage + 1}`));
-  }
-
-  if (navButtons.length > 0) {
-    buttons.push(navButtons);
-  }
-
-  buttons.push([Markup.button.callback(t('btnBack', lang), 'buy_products')]);
-
-  await safeEditMessage(ctx, headerText + (lang === 'ms' ? 'Pilih produk:' : 'Select a product:'), {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard(buttons)
-  });
-}
+// ...
 
 async function handleProductView(ctx, productId) {
   const userId = ctx.from.id;
@@ -116,11 +39,20 @@ async function handleProductView(ctx, productId) {
     return;
   }
 
+  const categories = await db.getCategories(); // Fetch categories
+  const discountedPrice = getDiscountedPrice(product, categories); // Calculate discount
+
   const stockStatus = product.stock < 5
     ? (lang === 'ms' ? '⚠️ Stok terhad!' : '⚠️ Limited stock!')
     : (lang === 'ms' ? '✅ Tersedia' : '✅ Available');
 
   const priceDisplay = await getPriceDisplay(product.price, userCurrency);
+
+  let priceText = priceDisplay;
+  if (discountedPrice < product.price) {
+    const discountedDisplay = await getPriceDisplay(discountedPrice, userCurrency);
+    priceText = `~${priceDisplay}~ *${discountedDisplay}* 🔥`;
+  }
 
   const safeProductName = escapeMarkdown(product.name[lang] || product.name['ms']);
   const safeDescription = escapeMarkdown(product.description[lang] || product.description['ms']);
@@ -128,13 +60,13 @@ async function handleProductView(ctx, productId) {
 
   const text = lang === 'ms'
     ? `📦 *${safeProductName}*\n\n` +
-    `💰 *Harga:* ${priceDisplay}\n` +
+    `💰 *Harga:* ${priceText}\n` +
     `📊 *Stok:* ${product.stock} unit - ${stockStatus}\n` +
     `🔄 *Jenis:* ${product.deliveryType === 'auto' ? 'Auto Delivery' : 'Manual Delivery'}\n\n` +
     `📝 *Penerangan:*\n${safeDescription}\n\n` +
     `🆔 ID: \`${safeProductId}\``
     : `📦 *${safeProductName}*\n\n` +
-    `💰 *Price:* ${priceDisplay}\n` +
+    `💰 *Price:* ${priceText}\n` +
     `📊 *Stock:* ${product.stock} units - ${stockStatus}\n` +
     `🔄 *Type:* ${product.deliveryType === 'auto' ? 'Auto Delivery' : 'Manual Delivery'}\n\n` +
     `📝 *Description:*\n${safeDescription}\n\n` +
@@ -145,7 +77,7 @@ async function handleProductView(ctx, productId) {
     [Markup.button.callback(t('btnBack', lang), `cat_${product.categoryId}`)]
   ];
 
-  // Show product image if available
+  // ... rest of image handling matches original ...
   const hasImage = product.images && product.images.length > 0;
 
   if (hasImage) {
@@ -153,7 +85,6 @@ async function handleProductView(ctx, productId) {
       const firstImage = product.images[0];
       const imageId = typeof firstImage === 'object' ? firstImage.fileId : firstImage;
 
-      // Delete the previous inline keyboard message if possible
       try { await ctx.deleteMessage(); } catch (e) { /* ignore */ }
 
       await ctx.replyWithPhoto(imageId, {
@@ -164,7 +95,6 @@ async function handleProductView(ctx, productId) {
       return;
     } catch (imgError) {
       console.error('Failed to send product image:', imgError.message);
-      // Fall through to text-only
     }
   }
 
@@ -208,13 +138,19 @@ async function handleBuyProduct(ctx, productId) {
     return;
   }
 
-  // Preview voucher discount (without consuming it)
-  const { applyVoucherToOrder } = require('./voucher');
-  const voucherResult = await applyVoucherToOrder(userId, product.price);
-  const finalAmount = voucherResult.finalAmount || product.price;
-  const discount = voucherResult.discount || 0;
+  // Calculate category discount first
+  const productPrice = parseFloat(product.price);
+  const categories = await db.getCategories();
+  const discountedPrice = getDiscountedPrice(product, categories);
 
-  const priceDisplay = await getPriceDisplay(product.price, userCurrency);
+  // Preview voucher discount (on top of category discount)
+  const { applyVoucherToOrder } = require('./voucher');
+  const voucherResult = await applyVoucherToOrder(userId, discountedPrice);
+  const finalAmount = voucherResult.finalAmount || discountedPrice;
+  const voucherDiscount = voucherResult.discount || 0;
+  const categoryDiscountDisplay = await getPriceDisplay(productPrice - discountedPrice, userCurrency);
+
+  const priceDisplay = await getPriceDisplay(productPrice, userCurrency);
   const finalAmountDisplay = await getPriceDisplay(finalAmount, userCurrency);
 
   const safeProductName = escapeMarkdown(product.name[lang] || product.name['ms']);
@@ -227,7 +163,13 @@ async function handleBuyProduct(ctx, productId) {
     `📦 Product: ${safeProductName}\n` +
     `💰 Price: ${priceDisplay}\n`;
 
-  if (voucherResult.voucherCode && discount > 0) {
+  if (productPrice > discountedPrice) {
+    confirmText += lang === 'ms'
+      ? `🏷️ Diskaun Kategori: -${categoryDiscountDisplay}\n`
+      : `🏷️ Category Discount: -${categoryDiscountDisplay}\n`;
+  }
+
+  if (voucherResult.voucherCode && voucherDiscount > 0) {
     const discountPct = voucherResult.discountPercentage || 0;
     // Calculate approximate discount in user currency for display
     const discountDisplay = await getPriceDisplay(discount, userCurrency);
@@ -321,11 +263,17 @@ async function handleConfirmBuy(ctx, productId) {
     return;
   }
 
-  const { applyVoucherToOrder } = require('./voucher');
-  const voucherResult = await applyVoucherToOrder(userId, product.price);
+  // Calculate category discount first
+  const productPrice = parseFloat(product.price);
+  const categories = await db.getCategories();
+  const discountedPrice = getDiscountedPrice(product, categories);
 
-  const finalAmount = voucherResult.finalAmount || product.price;
-  const discount = voucherResult.discount || 0;
+  const { applyVoucherToOrder } = require('./voucher');
+  const voucherResult = await applyVoucherToOrder(userId, discountedPrice, true); // Consume voucher
+
+  const finalAmount = voucherResult.finalAmount || discountedPrice;
+  const voucherDiscount = voucherResult.discount || 0;
+  const totalDiscount = (productPrice - discountedPrice) + voucherDiscount;
 
   const orderId = generateOrderId();
 
@@ -338,12 +286,12 @@ async function handleConfirmBuy(ctx, productId) {
     userId: userId,
     productId: productId,
     productName: product.name,
-    originalPrice: product.price,
+    originalPrice: productPrice, // Store original price before any discount
     price: finalAmount,
     currency: userCurrency, // Store the currency used
     exchangeRate: rate,     // Store the rate used
     priceInUserCurrency: priceInUserCurrency, // Store the calculated amount
-    discount: discount,
+    discount: totalDiscount,
     voucherCode: voucherResult.voucherCode || null,
     discountPercentage: voucherResult.discountPercentage || 0,
     status: 'pending',
@@ -389,14 +337,18 @@ async function handleConfirmBuy(ctx, productId) {
   let voucherInfo = '';
   const finalAmountDisplay = await getPriceDisplay(finalAmount, userCurrency);
 
-  if (voucherResult.voucherCode && discount > 0) {
+  if (voucherResult.voucherCode && voucherDiscount > 0) {
     const discountPct = voucherResult.discountPercentage || 0;
     const discountDisplay = await getPriceDisplay(discount, userCurrency);
     const originalPriceDisplay = await getPriceDisplay(product.price, userCurrency);
 
     voucherInfo = lang === 'ms'
-      ? `\n\n🎫 *Baucher Digunakan!*\n💳 Kod: ${voucherResult.voucherCode}\n💰 Harga Asal: ${originalPriceDisplay}\n🎉 Diskaun ${discountPct}%: -${discountDisplay}\n✅ Harga Akhir: ${finalAmountDisplay}`
-      : `\n\n🎫 *Voucher Applied!*\n💳 Code: ${voucherResult.voucherCode}\n💰 Original Price: ${originalPriceDisplay}\n🎉 Discount ${discountPct}%: -${discountDisplay}\n✅ Final Price: ${finalAmountDisplay}`;
+      ? `\n\n🎫 *Baucher Digunakan!*\n💳 Kod: ${voucherResult.voucherCode}\n💰 Harga Asal: ${originalPriceDisplay}\nLabels Diskaun Kategori: -${categoryDiscountDisplay}\n🎉 Diskaun Baucher ${discountPct}%: -${discountDisplay}\n✅ Harga Akhir: ${finalAmountDisplay}`
+      : `\n\n🎫 *Voucher Applied!*\n💳 Code: ${voucherResult.voucherCode}\n💰 Original Price: ${originalPriceDisplay}\nLabels Category Discount: -${categoryDiscountDisplay}\n🎉 Voucher Discount ${discountPct}%: -${discountDisplay}\n✅ Final Price: ${finalAmountDisplay}`;
+  } else if (productPrice > discountedPrice) {
+    voucherInfo = lang === 'ms'
+      ? `\n\n🏷️ *Diskaun Kategori Digunakan!*\n💰 Harga Asal: ${originalPriceDisplay}\n🎉 Diskaun: -${categoryDiscountDisplay}\n✅ Harga Akhir: ${finalAmountDisplay}`
+      : `\n\n🏷️ *Category Discount Applied!*\n💰 Original Price: ${originalPriceDisplay}\n🎉 Discount: -${categoryDiscountDisplay}\n✅ Final Price: ${finalAmountDisplay}`;
   }
 
   const safeProductName = escapeMarkdown(product.name.ms || product.name.en || 'Product');
@@ -523,8 +475,11 @@ async function notifyAdmins(ctx, orderId, product, userId, sessionToken) {
     };
 
     let priceInfo;
-    if (transaction && transaction.voucherCode && parseFloat(transaction.discount) > 0) {
-      priceInfo = `Original Price: RM${safePrice(transaction.originalPrice)}\nVoucher: ${transaction.voucherCode} (-RM${safePrice(transaction.discount)})\nFinal Price: RM${safePrice(transaction.price)}`;
+    if (transaction && parseFloat(transaction.discount) > 0) {
+      priceInfo = `Original Price: RM${safePrice(transaction.originalPrice)}\nTotal Discount: -RM${safePrice(transaction.discount)}\nFinal Price: RM${safePrice(transaction.price)}`;
+      if (transaction.voucherCode) {
+        priceInfo += `\n(Includes Voucher: ${transaction.voucherCode})`;
+      }
     } else {
       priceInfo = `Price: RM${safePrice(product.price)}`;
     }

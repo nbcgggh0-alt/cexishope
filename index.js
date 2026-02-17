@@ -1,5 +1,5 @@
 const { Telegraf, Markup } = require('telegraf');
-const { handleStart, handleMainMenu, handleSettingsMenu, handleLanguageToggle, handleLanguageSelect } = require('./handlers/start');
+const { handleStart, handleMainMenu, handleSettingsMenu, handleLanguageToggle, handleLanguageSelect, handleGuideMenu, handleUserGuide, handleAdminGuide, handleOwnerGuide } = require('./handlers/start');
 const { handleBuyProducts, handleCategory, handleProductView, handleBuyProduct, handleConfirmBuy, handlePaymentMethodSelect } = require('./handlers/products');
 const { handleSendPayment, handlePaymentSelection, handleViewPendingOrders } = require('./handlers/payment');
 const { handleMyOrders, handleMyItems } = require('./handlers/orders');
@@ -20,8 +20,37 @@ const { handleRating, handleFeedbackComment, handleSkipFeedback, handleViewFeedb
 const { handlePaymentProof, isAwaitingProof, handleUploadProofPrompt, handleSkipProof } = require('./handlers/paymentProof');
 const { handlePaymentSettings, handleSetBank, handleSetQR } = require('./handlers/paymentSettings');
 const { handlePing } = require('./handlers/ping');
-const { handleAutoPromotePanel, handleCreateBroadcast, handleScheduleMessage, handlePromoTemplates, handleUserTargeting, handlePromoAnalytics, handleABTesting, handleDiscountCodes, handleFlashSales, handleRepeatCampaigns, handleActiveCampaigns, handleBroadcastAll, handleBroadcastActive, handleBroadcastTagged, handleTargetAll, handleTargetActive, handleTargetTagged, handleTargetBuyers, handlePromoDetailedReport, handleCreateABTest, handleABTestResults, handlePauseAllCampaigns, handleViewSchedule, handleUsePromoTemplate, handleViewDiscount, handleViewFlash, handleViewRepeat, handleScheduleMsg, handleAddPromoTemplate, handleCreateABTestCommand, handleCreateDiscount, handleCreateFlash, handleRepeatCampaign } = require('./handlers/autoPromote');
-const { handleSystemPanel, handleUserStats, handleSalesAnalytics, handleAdminLogs, handleHealthCheck, handleStorageUsage, handleExportData, handleMaintenanceMode, handleBackupUI, handleErrorMonitor, handlePerformance, handleAPILimits, handleWebhookLogs, handleTransactionReports, handleInventoryAlerts, handleSessionAnalytics, handleEngagement, handleRevenue, handleImportData, handleSystemSettings, handleCacheManagement, handleExportUsers, handleExportProducts, handleExportTransactions, handleExportAll, handleStoreStatus, handleToggleStoreStatus, handleToggleMaintenance } = require('./handlers/systemFunctions');
+const { handleAutoPromotePanel, handleCreateBroadcast, handleScheduleMessage, handlePromoTemplates, handleUserTargeting, handlePromoAnalytics, handleABTesting, handleDiscountCodes, handleFlashSales, handleRepeatCampaigns, handleActiveCampaigns, handleBroadcastAll, handleBroadcastActive, handleBroadcastTagged, handleTargetAll, handleTargetActive, handleTargetTagged, handleTargetBuyers, handlePromoDetailedReport, handleCreateABTest, handleABTestResults, handlePauseAllCampaigns, handleViewSchedule, handleUsePromoTemplate, handleViewDiscount, handleDeleteDiscount, handleViewFlash, handleViewRepeat, handleScheduleMsg, handleAddPromoTemplate, handleCreateABTestCommand, handleCreateDiscount, handleCreateFlash, handleRepeatCampaign } = require('./handlers/autoPromote');
+// ... imports ...
+const {
+  handleSystemPanel, handleUserStats, handleSalesAnalytics, handleAdminLogs,
+  handleHealthCheck, handleStorageUsage, handleExportData, handleMaintenanceMode,
+  handleBackupUI, handleErrorMonitor, handlePerformance, handleAPILimits,
+  handleWebhookLogs, handleTransactionReports, handleInventoryAlerts,
+  handleSessionAnalytics, handleEngagement, handleRevenue, handleImportData,
+  handleSystemSettings, handleCacheManagement, handleExportUsers,
+  handleExportProducts, handleExportTransactions, handleExportAll,
+  handleStoreStatus, handleToggleStoreStatus, handleToggleMaintenance,
+  handleEditSystemSettings, handleClearAdminLogs, handleCleanBackups,
+  handleDetailedSalesReport, handleProcessImport
+} = require('./handlers/systemFunctions');
+
+// ...
+
+// ... bot.action registrations ...
+
+bot.action('edit_system_settings', safeHandler(async (ctx) => {
+  await handleEditSystemSettings(ctx);
+}));
+
+bot.action('clear_admin_logs', safeHandler(async (ctx) => {
+  // Add confirmation step? For now direct action as logic is simple
+  await handleClearAdminLogs(ctx);
+}));
+
+bot.action('clean_old_backups', safeHandler(async (ctx) => {
+  await handleCleanBackups(ctx);
+}));
 
 // NEW IMPROVEMENTS
 const { handleBulkOperations, handleBulkActivateAll, handleBulkDeactivateAll, handleBulkPriceByCategory, handleBulkPriceCategorySelect, handleBulkStockByCategory, handleBulkStockCategorySelect, processBulkEdit, handleBulkDeleteInactive, handleBulkDeleteConfirm } = require('./handlers/productBulkOperations');
@@ -1441,96 +1470,10 @@ bot.action('search_orders', safeHandler(async (ctx) => {
 
 bot.action('view_faq', safeHandler(handleFAQList));
 
-bot.action('user_guide', safeHandler(async (ctx) => {
-  const { Markup } = require('telegraf');
-  const user = await db.getUser(ctx.from.id);
-  const lang = user?.language || 'ms';
-
-  const guideText = lang === 'ms'
-    ? `📖 *PANDUAN PENGGUNAAN BOT*
-
-🛍️ *Cara Membeli Produk:*
-1. Klik butang "Beli Produk" di menu utama
-2. Pilih kategori produk yang anda inginkan
-3. Pilih produk yang anda mahu beli
-4. Klik "Beli Sekarang"
-5. Ikut arahan untuk membuat pembayaran
-
-💳 *Cara Membuat Pembayaran:*
-1. Selepas klik "Beli Sekarang", anda akan terima maklumat pembayaran
-2. Buat pembayaran melalui online banking atau e-wallet
-3. Ambil screenshot bukti pembayaran anda
-
-📸 *Cara Hantar Bukti Pembayaran:*
-1. Gunakan arahan: \`/send [order_id]\`
-2. Contoh: \`/send ORD-ABC123\`
-3. Attach gambar bukti pembayaran anda
-4. Admin akan sahkan pembayaran anda
-
-📋 *Cara Lihat Pesanan:*
-• Klik "Pesanan Saya" di menu utama
-• Atau gunakan \`/searchorder [order_id]\` untuk cari pesanan tertentu
-
-💬 *Cara Hubungi Support:*
-• Klik butang "Support" di menu utama
-• Hantar mesej anda kepada admin
-• Untuk keluar, klik "Keluar dari Sesi"
-
-⚡ *Arahan Yang Ada Untuk Pengguna:*
-• \`/start\` - Kembali ke menu utama
-• \`/send [order_id]\` - Hantar bukti pembayaran
-• \`/searchorder [order_id]\` - Cari pesanan
-• \`/faq\` - Lihat soalan lazim
-• \`/ping\` - Semak maklumat runtime sistem
-• \`/list\` - Lihat semua arahan
-
-❓ Jika ada masalah, sila hubungi admin melalui Support!`
-    : `📖 *BOT USAGE GUIDE*
-
-🛍️ *How to Buy Products:*
-1. Click "Buy Products" button in main menu
-2. Select the product category you want
-3. Choose the product you want to buy
-4. Click "Buy Now"
-5. Follow the instructions to make payment
-
-💳 *How to Make Payment:*
-1. After clicking "Buy Now", you will receive payment information
-2. Make payment via online banking or e-wallet
-3. Take a screenshot of your payment proof
-
-📸 *How to Send Payment Proof:*
-1. Use command: \`/send [order_id]\`
-2. Example: \`/send ORD-ABC123\`
-3. Attach your payment proof image
-4. Admin will verify your payment
-
-📋 *How to View Orders:*
-• Click "My Orders" in main menu
-• Or use \`/searchorder [order_id]\` to search specific order
-
-💬 *How to Contact Support:*
-• Click "Support" button in main menu
-• Send your message to admin
-• To exit, click "Leave Session"
-
-⚡ *Available Commands for Users:*
-• \`/start\` - Return to main menu
-• \`/send [order_id]\` - Send payment proof
-• \`/searchorder [order_id]\` - Search order
-• \`/faq\` - View FAQ
-• \`/ping\` - Check system runtime info
-• \`/list\` - View all commands
-
-❓ If you have any issues, please contact admin via Support!`;
-
-  await safeEditMessage(ctx, guideText, {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback(lang === 'ms' ? '🔙 Kembali' : '🔙 Back', 'main_menu')]
-    ])
-  });
-}));
+bot.action('user_guide', safeHandler(handleGuideMenu));
+bot.action('guide_user', safeHandler(handleUserGuide));
+bot.action('guide_admin', safeHandler(handleAdminGuide));
+bot.action('guide_owner', safeHandler(handleOwnerGuide));
 
 bot.action('all_orders', safeHandler(handleCheckAllOrderId));
 
@@ -1819,6 +1762,31 @@ bot.action(/^reject_order_(.+)$/, safeHandler(async (ctx) => {
   await ctx.answerCbQuery();
 }));
 
+// --- New System Functions ---
+bot.action('edit_system_settings', safeHandler(async (ctx) => {
+  await handleEditSystemSettings(ctx);
+}));
+
+bot.action('clear_admin_logs', safeHandler(async (ctx) => {
+  await handleClearAdminLogs(ctx);
+}));
+
+bot.action('clean_old_backups', safeHandler(async (ctx) => {
+  await handleCleanBackups(ctx);
+}));
+
+bot.action('sys_cache', safeHandler(async (ctx) => {
+  await handleCacheManagement(ctx);
+}));
+
+bot.action('detailed_sales_report', safeHandler(async (ctx) => {
+  await handleDetailedSalesReport(ctx);
+}));
+
+bot.on('document', safeHandler(async (ctx) => {
+  await handleProcessImport(ctx);
+}));
+
 bot.action(/^view_schedule_(.+)$/, safeHandler(async (ctx) => {
   const scheduleId = ctx.match[1];
   await handleViewSchedule(ctx, scheduleId);
@@ -1832,6 +1800,10 @@ bot.action(/^use_promo_template_(.+)$/, safeHandler(async (ctx) => {
 bot.action(/^view_discount_(.+)$/, safeHandler(async (ctx) => {
   const discountCode = ctx.match[1];
   await handleViewDiscount(ctx, discountCode);
+}));
+
+bot.action(/^delete_discount_(.+)$/, safeHandler(async (ctx) => {
+  await handleDeleteDiscount(ctx);
 }));
 
 bot.action(/^view_flash_(.+)$/, safeHandler(async (ctx) => {
