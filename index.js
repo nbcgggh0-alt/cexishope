@@ -1180,11 +1180,7 @@ bot.action(/^cancel_schedule_(.+)$/, safeHandler(async (ctx) => {
 // Category Discounts Actions
 bot.action('category_discounts', safeHandler(handleCategoryDiscounts));
 
-bot.action(/^cat_disc_(.+)$/, safeHandler(async (ctx) => {
-  const categoryId = ctx.match[1];
-  await handleCategoryDiscountDetail(ctx, categoryId);
-}));
-
+// IMPORTANT: Specific patterns MUST come before the generic cat_disc_ catch-all
 bot.action(/^cat_disc_add_pct_(.+)$/, safeHandler(async (ctx) => {
   const categoryId = ctx.match[1];
   await handleAddCategoryDiscount(ctx, categoryId, 'percentage');
@@ -1210,6 +1206,12 @@ bot.action(/^cat_disc_edit_(.+)$/, safeHandler(async (ctx) => {
       ? 'Untuk edit diskaun, padam yang sedia ada dan tambah yang baru.'
       : 'To edit discount, remove the existing one and add a new one.'
   );
+}));
+
+// Generic catch-all for category detail view (MUST be last)
+bot.action(/^cat_disc_(.+)$/, safeHandler(async (ctx) => {
+  const categoryId = ctx.match[1];
+  await handleCategoryDiscountDetail(ctx, categoryId);
 }));
 
 // Review & Rating Actions
