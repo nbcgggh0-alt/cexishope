@@ -954,7 +954,7 @@ async function handleDetailedSalesReport(ctx) {
     ? `📊 *Detailed Sales Report*\n\n`
     : `📊 *Laporan Jualan Terperinci*\n\n`;
 
-  const sortedProducts = Object.entries(productStats).sort((a, b) => b.1.revenue - a.1.revenue);
+  const sortedProducts = Object.entries(productStats).sort((a, b) => b[1].revenue - a[1].revenue);
 
   if (sortedProducts.length === 0) {
     report += lang === 'en' ? 'No sales data available.' : 'Tiada data jualan.';
