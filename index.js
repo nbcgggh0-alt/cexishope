@@ -8,7 +8,7 @@ const { handleAdminPanel, handleAdminOrders, handleVerifyOrder, handleRejectOrde
 const { handleCategoryManagement, handleCategoryDetail, handleDeleteCategory, handleEditCategoryName, handleEditCategoryIcon, processCategoryEdit } = require('./handlers/categoryManagement');
 const { handleProductManagementMenu, handleProductList, handleProductDetail, handleToggleProduct, handleDeleteProductConfirm, handleDeleteProduct, handleEditProductField, processProductEdit, handleLowStockProducts } = require('./handlers/productManagementImproved');
 const { handleOwnerPanel, handleOwnerAdmins, handleSetOwner, handleAddAdmin, handleRemoveAdmin, handleOwnerSettings, handleOwnerBackup, handleOwnerAdvanced } = require('./handlers/owner');
-const { handleAnalytics: handleOwnerAnalytics } = require('./handlers/ownerAnalytics');
+const { handleAnalytics } = require('./handlers/ownerAnalytics');
 const { handleServerPanel, handleViewPanel, handleServerPower, handleCreateServer, handleCreateServerWithUser, handleSetPrimary, handleDeletePanel, handleConfirmDeletePanel, handleHealthCheck: handlePteroHealthCheck, handleAddPanelStart } = require('./handlers/serverPanel');
 const { handleSupport, handleJoinSession, handleLeaveSession, handleCloseSession, handleEndSession, handleSessionMessage, handleListSessions, handleSetActiveSession, handleSendToSession } = require('./handlers/session');
 const { handleBanUser, handleUnbanUser, handleTagUser, handleUntagUser, handleListBannedUsers, checkIfBanned, handleUserSearch, handleAdminUserOrders } = require('./handlers/userManagement');
@@ -1598,7 +1598,7 @@ bot.action(/^set_cat_icon_(.+)_(.+)$/, safeHandler(async (ctx) => {
 bot.action('owner_dashboard', safeHandler(handleOwnerDashboard));
 bot.action('owner_detailed_report', safeHandler(handleDetailedReport));
 bot.action('owner_trend_analysis', safeHandler(handleTrendAnalysis));
-bot.action('owner_analytics', safeHandler(handleOwnerAnalytics));
+bot.action('owner_analytics', safeHandler(handleAnalytics));
 
 // Quick Actions
 bot.action('quick_actions', safeHandler(handleQuickActionsMenu));
@@ -1725,7 +1725,7 @@ bot.action('admin_manage_faq', safeHandler(async (ctx) => {
   });
 }));
 
-bot.action('owner_analytics', safeHandler(handleOwnerAnalytics));
+bot.action('owner_analytics', safeHandler(handleAnalytics));
 
 bot.action('owner_advanced', safeHandler(handleOwnerAdvanced));
 
