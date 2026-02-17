@@ -167,7 +167,7 @@ async function processDiscountInput(ctx) {
   const userId = ctx.from.id;
   const state = discountState.get(userId);
 
-  if (!state) return;
+  if (!state) return false;
 
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
@@ -179,7 +179,7 @@ async function processDiscountInput(ctx) {
         ? '❌ Nilai tidak sah! Sila masukkan nombor yang sah.'
         : '❌ Invalid value! Please enter a valid number.'
     );
-    return;
+    return true;
   }
 
   if (state.type === 'percentage' && value > 100) {
@@ -188,7 +188,7 @@ async function processDiscountInput(ctx) {
         ? '❌ Peratusan mesti antara 1-100!'
         : '❌ Percentage must be between 1-100!'
     );
-    return;
+    return true;
   }
 
   const categories = await db.getCategories();
@@ -197,7 +197,7 @@ async function processDiscountInput(ctx) {
   if (categoryIdx === -1) {
     discountState.delete(userId);
     await ctx.reply(lang === 'ms' ? '❌ Kategori tidak dijumpai' : '❌ Category not found');
-    return;
+    return true;
   }
 
   categories[categoryIdx].discount = {
@@ -222,6 +222,7 @@ async function processDiscountInput(ctx) {
       `All products in this category now get this discount.`,
     { parse_mode: 'Markdown' }
   );
+  return true;
 }
 
 async function handleRemoveCategoryDiscount(ctx, categoryId) {

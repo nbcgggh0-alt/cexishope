@@ -1899,13 +1899,13 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  // NEW FEATURES - Process inputs
-  await processOptionInput(ctx);
-  await processScheduleInput(ctx);
-  await processDiscountInput(ctx);
-  await processReviewComment(ctx);
-  await processCustomDateInput(ctx);
-  await processQuickEditInput(ctx);
+  // NEW FEATURES - Process inputs (check each for handled status)
+  if (await processOptionInput(ctx)) return;
+  if (await processScheduleInput(ctx)) return;
+  if (await processDiscountInput(ctx)) return;
+  if (await processReviewComment(ctx)) return;
+  if (await processCustomDateInput(ctx)) return;
+  if (await processQuickEditInput(ctx)) return;
   await processProductImage(ctx);
 
   // Check for feedback comment first
