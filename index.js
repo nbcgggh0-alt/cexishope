@@ -14,7 +14,7 @@ const { handleBanUser, handleUnbanUser, handleTagUser, handleUntagUser, handleLi
 const { handleSearchOrders, handleFilterOrders, handleFilterCallback } = require('./handlers/orderSearch');
 const { handleDuplicateProduct, handleInventoryHistory, handleStockAdjustment, handleAddItem, handleAddItems, handleAddItemsFile } = require('./handlers/productManagement');
 const { handleAddTemplate, handleQuickTemplate, handleListTemplates, handleDeleteTemplate, handleAddFAQ, handleFAQList, handleListFAQs, handleDeleteFAQ, checkFAQResponse } = require('./handlers/autoReply');
-const { handleSetCurrency, handleCurrencySelect } = require('./handlers/currency');
+const { handleSetCurrency, handleCurrencySelect, handleAdminRates, handleSetRate, handleResetRate, handleForceUpdateRates } = require('./handlers/currency');
 const { handleRating, handleFeedbackComment, handleSkipFeedback, handleViewFeedbacks } = require('./handlers/feedback');
 const { handlePaymentProof, isAwaitingProof, handleUploadProofPrompt, handleSkipProof } = require('./handlers/paymentProof');
 const { handlePing } = require('./handlers/ping');
@@ -435,7 +435,14 @@ bot.command('upserver', safeHandler(async (ctx) => {
 }));
 
 // Currency & Feedback
+// Currency & Feedback
 bot.command('currency', safeHandler(handleSetCurrency));
+// Admin Currency Management
+bot.command('rates', safeHandler(handleAdminRates));
+bot.command('setrate', safeHandler(handleSetRate));
+bot.command('resetrate', safeHandler(handleResetRate));
+bot.command('updaterates', safeHandler(handleForceUpdateRates));
+bot.action('force_update_rates', safeHandler(handleForceUpdateRates));
 
 bot.command('skipfeedback', safeHandler(async (ctx) => {
   const userId = ctx.from.id;

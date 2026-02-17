@@ -58,7 +58,148 @@ async function handleCurrencySelect(ctx, currency) {
   }
 }
 
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+const CUSTOM_FILE = path.join(__dirname, '../currency_custom.json');
+
+// ... existing user handlers ...
+
+// --- ADMIN HANDLERS ---
+
+async function handleAdminRates(ctx) {
+  if (ctx.from.id.toString() !== config.ownerId) return;
+
+  const CurrencyEngine = require('../utils/currency/CurrencyEngine');
+  const rates = await CurrencyEngine.getRates('MYR');
+
+  // Read Manual Overrides to highlight them
+  let manuals = {};
+  if (fs.existsSync(CUSTOM_FILE)) {
+    try { manuals = JSON.parse(fs.readFileSync(CUSTOM_FILE, 'utf8')); } catch (e) { }
+  }
+
+  // Top currencies to display
+  const display = ['USD', 'SGD', 'IDR', 'CNY', 'THB', 'VND', 'EUR', 'GBP', 'SAR', 'TRY', 'BTC', 'ETH', 'USDT'];
+
+  let msg = `🦁 *Hydra Currency Engine Status*\n\n`;
+  msg += `📡 *Active Providers:* ${CurrencyEngine.providers.length}\n`;
+  msg += `🕰 *Last Update:* ${new Date(CurrencyEngine.cache.timestamp).toLocaleTimeString()}\n\n`;
+
+  msg += `💱 *Current Rates (1 MYR = ?)*\n`;
+  msg += `\`------------------\`\n`;
+
+  display.forEach(c => {
+    const isManual = manuals[c] !== undefined;
+    const icon = isManual ? '🛠 ' : '  ';
+    const rate = rates[c] ? rates[c] : 'N/A';
+    msg += `${icon}*${c}:* \`${rate}\`\n`;
+  });
+
+  msg += `\`------------------\`\n\n`;
+  msg += `*Commands:*\n`;
+  msg += `• \`/setrate [CURR] [VAL]\` - Set manual rate\n`;
+  msg += `• \`/resetrate [CURR]\` - Remove manual rate\n`;
+  msg += `• \`/updaterates\` - Force refresh`;
+
+  // Add Refresh Button
+  await ctx.reply(msg, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([
+      Markup.button.callback('🔄 Force Refresh', 'force_update_rates')
+    ])
+  });
+}
+
+async function handleSetRate(ctx) {
+  if (ctx.from.id.toString() !== config.ownerId) return;
+
+  const args = ctx.message.text.split(' ');
+  if (args.length !== 3) {
+    return ctx.reply('⚠️ Usage: `/setrate [CURRENCY] [VALUE]`\nExample: `/setrate USD 0.25`', { parse_mode: 'Markdown' });
+  }
+
+  const currency = args[1].toUpperCase();
+  const rate = parseFloat(args[2]);
+
+  if (isNaN(rate)) return ctx.reply('⚠️ Invalid rate value.');
+
+  try {
+    let manuals = {};
+    if (fs.existsSync(CUSTOM_FILE)) {
+      manuals = JSON.parse(fs.readFileSync(CUSTOM_FILE, 'utf8'));
+    }
+
+    manuals[currency] = rate;
+    fs.writeFileSync(CUSTOM_FILE, JSON.stringify(manuals, null, 2));
+
+    // Force Clear Cache
+    const CurrencyEngine = require('../utils/currency/CurrencyEngine');
+    CurrencyEngine.cache.rates = null;
+
+    ctx.reply(`✅ *Manual Rate Set!*\n\n1 MYR = ${rate} ${currency}\n(This will override all scrapers)`, { parse_mode: 'Markdown' });
+  } catch (e) {
+    ctx.reply(`❌ Error saving rate: ${e.message}`);
+  }
+}
+
+async function handleResetRate(ctx) {
+  if (ctx.from.id.toString() !== config.ownerId) return;
+
+  const args = ctx.message.text.split(' ');
+  if (args.length !== 2) {
+    return ctx.reply('⚠️ Usage: `/resetrate [CURRENCY]`', { parse_mode: 'Markdown' });
+  }
+
+  const currency = args[1].toUpperCase();
+
+  try {
+    let manuals = {};
+    if (fs.existsSync(CUSTOM_FILE)) {
+      manuals = JSON.parse(fs.readFileSync(CUSTOM_FILE, 'utf8'));
+    }
+
+    if (manuals[currency]) {
+      delete manuals[currency];
+      fs.writeFileSync(CUSTOM_FILE, JSON.stringify(manuals, null, 2));
+
+      // Force Clear Cache
+      const CurrencyEngine = require('../utils/currency/CurrencyEngine');
+      CurrencyEngine.cache.rates = null;
+
+      ctx.reply(`✅ *Manual Rate Removed!*\nReverting to scraped data for ${currency}.`, { parse_mode: 'Markdown' });
+    } else {
+      ctx.reply(`⚠️ No manual rate found for ${currency}.`);
+    }
+  } catch (e) {
+    ctx.reply(`❌ Error: ${e.message}`);
+  }
+}
+
+async function handleForceUpdateRates(ctx) {
+  if (ctx.from.id.toString() !== config.ownerId) return; // Security check
+
+  const CurrencyEngine = require('../utils/currency/CurrencyEngine');
+  CurrencyEngine.cache.rates = null; // Clear cache
+
+  await ctx.reply('🔄 *Forcing Hydra Engine Update...*\nFetching from 100+ sources...', { parse_mode: 'Markdown' });
+
+  try {
+    await CurrencyEngine.getRates('MYR');
+    await ctx.reply('✅ *Update Complete!*');
+    // Redirect to dashboard
+    handleAdminRates(ctx);
+  } catch (e) {
+    ctx.reply(`❌ Update Failed: ${e.message}`);
+  }
+}
+
+
 module.exports = {
   handleSetCurrency,
-  handleCurrencySelect
+  handleCurrencySelect,
+  handleAdminRates,
+  handleSetRate,
+  handleResetRate,
+  handleForceUpdateRates
 };
