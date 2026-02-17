@@ -6,7 +6,9 @@ const { sendFeedbackRequest } = require('./feedback');
 const { logAdminAction } = require('../utils/adminLogger');
 const { escapeMarkdown } = require('../utils/security'); // Security Utils
 
-const broadcastMode = new Map();
+
+// Removed global broadcastMode map in favor of local broadcastState
+
 
 async function isAdmin(userId) {
   const admins = await db.getAdmins();
@@ -666,6 +668,8 @@ async function handleAdminSessions(ctx) {
   });
 }
 
+const broadcastState = new Map(); // Store { messageId, chatId }
+
 async function handleAdminBroadcast(ctx) {
   const userId = ctx.from.id;
 
@@ -674,51 +678,121 @@ async function handleAdminBroadcast(ctx) {
     return;
   }
 
-  const user = await db.getUser(userId);
-  const lang = user?.language || 'ms';
+  // Set state
+  broadcastState.set(userId, { step: 'awaiting_message' });
 
-  broadcastMode.set(userId, true);
-
-  const text = lang === 'en'
-    ? '📢 *Broadcast Mode*\n\nSend your next message and it will be broadcast to all users.\n\nThe message will be sent to all registered users in the system.'
-    : '📢 *Mod Siar*\n\nHantar mesej seterusnya dan ia akan disiarkan kepada semua pengguna.\n\nMesej akan dihantar kepada semua pengguna berdaftar dalam sistem.';
+  const text = '📢 *Broadcast Mode*\n\n' +
+    'By default, this will send to **ALL registered users**.\n\n' +
+    '📤 **Send your message now:**\n' +
+    '- You can send Text, Photo, Video, Sticker, Voice, etc.\n' +
+    '- Formatting (Bold/Italic) is preserved.\n' +
+    '- Forwarded messages are supported.';
 
   await safeEditMessage(ctx, text, {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
-      [Markup.button.callback(t('btnBack', lang), 'admin_panel')]
+      [Markup.button.callback('🔙 Cancel', 'admin_panel')]
     ])
   });
 }
 
 async function handleBroadcastMessage(ctx) {
   const userId = ctx.from.id;
+  const state = broadcastState.get(userId);
 
-  if (!broadcastMode.has(userId)) {
+  if (!state || state.step !== 'awaiting_message') {
     return false;
   }
 
-  broadcastMode.delete(userId);
+  // Store the message detail to be copied later
+  const messageId = ctx.message.message_id;
+  const chatId = ctx.chat.id;
 
-  const message = ctx.message.text;
+  // Save draft state
+  broadcastState.set(userId, {
+    step: 'confirm',
+    messageId: messageId,
+    chatId: chatId
+  });
+
   const users = await db.getUsers();
+  const count = users.length;
 
-  let successCount = 0;
-  let failCount = 0;
+  // Send Preview
+  await ctx.reply('👁️ *Preview of your Broadcast:*', { parse_mode: 'Markdown' });
 
-  for (const user of users) {
-    try {
-      await ctx.telegram.sendMessage(user.id, `📢 *Broadcast Message*\n\n${message}`, { parse_mode: 'Markdown' });
-      successCount++;
-    } catch (error) {
-      console.error(`Failed to send broadcast to ${user.id}:`, error.message);
-      failCount++;
-    }
+  try {
+    // Show them exactly what users will see
+    await ctx.copyMessage(chatId);
+  } catch (e) {
+    await ctx.reply('⚠️ Error generating preview. But message content is captured.');
   }
 
-  await ctx.reply(`✅ Broadcast sent!\n\n✓ Success: ${successCount}\n✗ Failed: ${failCount}`);
+  // Confirmation
+  await ctx.reply(
+    `📢 *Ready to Broadcast?*\n\n👥 Target: All Users (${count} users)\n\n⚠️ _This action cannot be undone._`,
+    {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('✅ SEND NOW', 'confirm_broadcast')],
+        [Markup.button.callback('❌ Cancel', 'cancel_broadcast')]
+      ])
+    }
+  );
 
   return true;
+}
+
+async function handleConfirmBroadcast(ctx) {
+  const userId = ctx.from.id;
+  const state = broadcastState.get(userId);
+
+  if (!state || state.step !== 'confirm') {
+    await ctx.answerCbQuery('Session expired or invalid');
+    return;
+  }
+
+  // Clear state immediately to prevent double sending
+  broadcastState.delete(userId);
+
+  await ctx.editMessageText('🚀 *Broadcasting started...* \nThis may take a while.', { parse_mode: 'Markdown' });
+
+  const users = await db.getUsers();
+  let success = 0;
+  let fail = 0;
+  let blocked = 0;
+
+  // Loop with delay to prevent flood limits
+  for (const user of users) {
+    try {
+      await ctx.telegram.copyMessage(user.id, state.chatId, state.messageId);
+      success++;
+    } catch (error) {
+      if (error.description && error.description.includes('blocked')) {
+        blocked++;
+      } else {
+        fail++;
+      }
+    }
+    // Small delay (30ms = ~30 msg/sec max)
+    await new Promise(resolve => setTimeout(resolve, 30));
+  }
+
+  await ctx.reply(
+    `✅ *Broadcast Completed!*\n\n` +
+    `📨 Total Sent: ${success}\n` +
+    `🚫 Blocked by User: ${blocked}\n` +
+    `❌ Failed: ${fail}`,
+    { parse_mode: 'Markdown' }
+  );
+}
+
+async function handleCancelBroadcast(ctx) {
+  const userId = ctx.from.id;
+  broadcastState.delete(userId);
+  await ctx.editMessageText('❌ Broadcast cancelled.', { parse_mode: 'Markdown' });
+  // Return to admin panel
+  setTimeout(() => handleAdminPanel(ctx), 1000);
 }
 
 async function handleCheckAllOrderId(ctx) {
@@ -1103,5 +1177,7 @@ module.exports = {
   handleViewOrder,
   handleDeleteOrderConfirm,
   handleDeleteOrder,
-  handleNoteCommand
+  handleNoteCommand,
+  handleConfirmBroadcast,
+  handleCancelBroadcast
 };

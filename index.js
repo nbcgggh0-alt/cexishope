@@ -1813,6 +1813,21 @@ bot.command('note', safeHandler(async (ctx) => {
   await handleNoteCommand(ctx);
 }));
 
+bot.action('admin_broadcast', safeHandler(async (ctx) => {
+  const { handleAdminBroadcast } = require('./handlers/admin');
+  await handleAdminBroadcast(ctx);
+}));
+
+bot.action('confirm_broadcast', safeHandler(async (ctx) => {
+  const { handleConfirmBroadcast } = require('./handlers/admin');
+  await handleConfirmBroadcast(ctx);
+}));
+
+bot.action('cancel_broadcast', safeHandler(async (ctx) => {
+  const { handleCancelBroadcast } = require('./handlers/admin');
+  await handleCancelBroadcast(ctx);
+}));
+
 bot.command('addsnippet', safeHandler(async (ctx) => {
   const { handleAddSnippet } = require('./handlers/snippets');
   await handleAddSnippet(ctx);
