@@ -138,7 +138,7 @@ async function handleProductDetail(ctx, productId) {
     `📊 Stok: ${product.stock}\n` +
     `🔄 Jenis: ${product.deliveryType}\n` +
     `${product.active ? '✅' : '❌'} Status: ${product.active ? 'Aktif' : 'Tidak Aktif'}\n\n` +
-    `📝 Penerangan:\n${product.description.ms}\n\n` +
+    `📝 Penerangan:\n${product.description?.ms || product.description?.en || '-'}\n\n` +
     `Pilih tindakan:`
     : `📦 *${product.name.en || product.name.ms}*\n\n` +
     `🆔 ID: \`${product.id}\`\n` +
@@ -147,7 +147,7 @@ async function handleProductDetail(ctx, productId) {
     `📊 Stock: ${product.stock}\n` +
     `🔄 Type: ${product.deliveryType}\n` +
     `${product.active ? '✅' : '❌'} Status: ${product.active ? 'Active' : 'Inactive'}\n\n` +
-    `📝 Description:\n${product.description.en || product.description.ms}\n\n` +
+    `📝 Description:\n${product.description?.en || product.description?.ms || '-'}\n\n` +
     `Choose action:`;
 
   const buttons = [
