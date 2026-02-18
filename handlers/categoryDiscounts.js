@@ -360,11 +360,14 @@ function getDiscountedPrice(product, categories) {
     return product.price; // Return original price if expired
   }
 
+  let finalPrice;
   if (category.discount.type === 'percentage') {
-    return product.price * (1 - category.discount.value / 100);
+    finalPrice = product.price * (1 - category.discount.value / 100);
   } else {
-    return Math.max(0, product.price - category.discount.value);
+    finalPrice = Math.max(0, product.price - category.discount.value);
   }
+
+  return parseFloat(finalPrice.toFixed(2));
 }
 
 module.exports = {
