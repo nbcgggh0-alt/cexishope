@@ -1,6 +1,7 @@
 const { Markup } = require('telegraf');
 const db = require('../utils/database');
 const { generateId } = require('../utils/helpers');
+const { smartFormatItem } = require('../utils/smartParser');
 const { isOwnerOrAdmin } = require('./userManagement');
 
 // Product Duplication
@@ -277,7 +278,11 @@ async function handleAddItem(ctx) {
 
   // Add item
   if (!product.items) product.items = [];
-  product.items.push(itemData);
+
+  // Smart Format
+  const formattedItem = smartFormatItem(itemData);
+  product.items.push(formattedItem);
+
   const newStock2 = product.items.length;
   await db.updateProduct(product.id, { items: product.items, stock: newStock2 });
   product.stock = newStock2;
@@ -297,7 +302,8 @@ async function handleAddItem(ctx) {
     `📊 Stock: ${product.stock} items\n` +
     `🔄 Type: Auto Delivery\n\n` +
     `_Item akan dihantar automatik apabila pesanan disahkan._\n` +
-    `_Item will be auto-delivered when order is verified._`,
+    `_Item will be auto-delivered when order is verified._\n\n` +
+    `📝 *Preview:*\n\`${formattedItem}\``,
     { parse_mode: 'Markdown' }
   );
 }
@@ -440,7 +446,9 @@ async function handleAddItemsFile(ctx) {
     }
 
     // Smart parse: detects block mode (---) vs simple mode (line by line)
-    const items = parseItemsFromContent(content);
+    // Then apply smart formatting to each item
+    const rawItems = parseItemsFromContent(content);
+    const items = rawItems.map(item => smartFormatItem(item));
 
     if (items.length === 0) {
       await ctx.reply('❌ Fail kosong / Empty file. No items found.');

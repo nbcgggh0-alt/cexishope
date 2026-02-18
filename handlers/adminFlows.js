@@ -4,6 +4,7 @@
  */
 const { Markup } = require('telegraf');
 const db = require('../utils/database');
+const { smartFormatItem } = require('../utils/smartParser');
 const { isOwnerOrAdmin } = require('./userManagement');
 const { generateId } = require('../utils/helpers');
 
@@ -400,7 +401,11 @@ async function processAdminFlowInput(ctx) {
                 }
 
                 if (!product.items) product.items = [];
-                product.items.push(text);
+
+                // Smart Format
+                const formattedText = smartFormatItem(text);
+                product.items.push(formattedText);
+
                 const newStock = product.items.length;
                 await db.updateProduct(product.id, { items: product.items, stock: newStock });
                 product.stock = newStock;
@@ -408,8 +413,8 @@ async function processAdminFlowInput(ctx) {
 
                 await ctx.reply(
                     lang === 'ms'
-                        ? `✅ *Item Ditambah!*\n\n📦 ${product.name.ms}\n📊 Stok: ${product.stock}`
-                        : `✅ *Item Added!*\n\n📦 ${product.name.ms}\n📊 Stock: ${product.stock}`,
+                        ? `✅ *Item Ditambah!*\n\n📦 ${product.name.ms}\n📊 Stok: ${product.stock}\n\n📝 *Preview Item:*\n\`${formattedText}\``
+                        : `✅ *Item Added!*\n\n📦 ${product.name.ms}\n📊 Stock: ${product.stock}\n\n📝 *Preview Item:*\n\`${formattedText}\``,
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
