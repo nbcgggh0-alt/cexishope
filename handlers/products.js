@@ -49,7 +49,9 @@ async function handleBuyProducts(ctx) {
   });
 }
 
-async function handleCategory(ctx, categoryId) {
+const PRODUCTS_PER_PAGE = 5;
+
+async function handleCategory(ctx, categoryId, page = 0) {
   const userId = ctx.from.id;
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
@@ -83,10 +85,22 @@ async function handleCategory(ctx, categoryId) {
     return;
   }
 
+  // Pagination
+  const totalPages = Math.ceil(products.length / PRODUCTS_PER_PAGE);
+  const currentPage = Math.max(0, Math.min(page, totalPages - 1));
+  const start = currentPage * PRODUCTS_PER_PAGE;
+  const pageProducts = products.slice(start, start + PRODUCTS_PER_PAGE);
+
+  const pageInfo = totalPages > 1
+    ? (lang === 'ms'
+      ? ` (Halaman ${currentPage + 1}/${totalPages})`
+      : ` (Page ${currentPage + 1}/${totalPages})`)
+    : '';
+
   // Generate product list message
   let message = lang === 'ms'
-    ? `📂 Kategori: *${catName}*\n\nSilih pilih produk:\n\n`
-    : `📂 Category: *${catName}*\n\nPlease select a product:\n\n`;
+    ? `📂 Kategori: *${catName}*${pageInfo}\n\nSilih pilih produk:\n\n`
+    : `📂 Category: *${catName}*${pageInfo}\n\nPlease select a product:\n\n`;
 
   const buttons = [];
 
@@ -94,7 +108,7 @@ async function handleCategory(ctx, categoryId) {
   const { getDiscountedPrice } = require('./categoryDiscounts');
   const categories = await db.getCategories();
 
-  for (const product of products) {
+  for (const product of pageProducts) {
     const priceDisplay = await getPriceDisplay(product.price, userCurrency);
     const discountedPrice = getDiscountedPrice(product, categories);
 
@@ -104,13 +118,33 @@ async function handleCategory(ctx, categoryId) {
       priceLabel = `${discountedDisplay} 🔥`;
     }
 
-    const safeName = escapeMarkdown(product.name[lang] || product.name['ms']);
-
     // Add button: Product Name - Price
     buttons.push([Markup.button.callback(
       `${product.name[lang] || product.name['ms']} - ${priceLabel}`,
       `prod_${product.id}`
     )]);
+  }
+
+  // Pagination navigation row
+  if (totalPages > 1) {
+    const navRow = [];
+    if (currentPage > 0) {
+      navRow.push(Markup.button.callback(
+        lang === 'ms' ? '◀ Sebelum' : '◀ Prev',
+        `catpage_${categoryId}_${currentPage - 1}`
+      ));
+    }
+    navRow.push(Markup.button.callback(
+      `${currentPage + 1}/${totalPages}`,
+      `catpage_${categoryId}_${currentPage}`
+    ));
+    if (currentPage < totalPages - 1) {
+      navRow.push(Markup.button.callback(
+        lang === 'ms' ? 'Seterus ▶' : 'Next ▶',
+        `catpage_${categoryId}_${currentPage + 1}`
+      ));
+    }
+    buttons.push(navRow);
   }
 
   buttons.push([Markup.button.callback(t('btnBack', lang), 'buy_products')]);
