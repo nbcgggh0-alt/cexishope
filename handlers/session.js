@@ -479,6 +479,17 @@ async function handleSessionMessage(ctx) {
   }
 }
 
+// Helper to escape HTML characters
+function escapeHtml(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 async function handleListSessions(ctx) {
   const userId = ctx.from.id;
   const { isAdmin } = require('./admin');
@@ -496,7 +507,7 @@ async function handleListSessions(ctx) {
   const openSessions = activeSessions.filter(s => !s.adminId);
   const otherSessions = activeSessions.filter(s => s.adminId && s.adminId !== userId);
 
-  let message = '🎫 *SUPPORT TICKET DASHBOARD*\n\n';
+  let message = '🎫 <b>SUPPORT TICKET DASHBOARD</b>\n\n';
 
   const buttons = [];
 
