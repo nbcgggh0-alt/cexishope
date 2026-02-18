@@ -187,8 +187,11 @@ async function handleProductView(ctx, productId) {
     priceText = `~${priceDisplay}~ *${discountedDisplay}* 🔥`;
   }
 
-  const safeProductName = escapeMarkdown(product.name[lang] || product.name['ms']);
-  const safeDescription = escapeMarkdown(product.description[lang] || product.description['ms']);
+  const name = product.name ? (product.name[lang] || product.name['ms'] || 'Unknown Product') : 'Unknown Product';
+  const desc = product.description ? (product.description[lang] || product.description['ms'] || '') : '';
+
+  const safeProductName = escapeMarkdown(name);
+  const safeDescription = escapeMarkdown(desc);
   const safeProductId = escapeMarkdown(product.id);
 
   const text = lang === 'ms'
