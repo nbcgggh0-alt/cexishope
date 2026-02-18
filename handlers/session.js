@@ -1,7 +1,7 @@
 const { Markup } = require('telegraf');
 const db = require('../utils/database');
 const { t } = require('../utils/translations');
-const { generateSessionToken, isSessionExpired } = require('../utils/helpers');
+const { generateSessionToken, isSessionExpired, sanitizeText } = require('../utils/helpers');
 const { safeEditMessage } = require('../utils/messageHelper');
 
 async function handleSupport(ctx) {
@@ -505,7 +505,8 @@ async function handleListSessions(ctx) {
     message += `👤 *YOUR ACTIVE TICKETS (${mySessions.length})*\n`;
     for (const s of mySessions) {
       const lastMsg = s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
-      const lastText = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
+      const lastTextRaw = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
+      const lastText = sanitizeText(lastTextRaw);
       const time = new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       message += `• \`${s.token}\` (User ${s.userId}) - ${time}\n`;
@@ -522,7 +523,8 @@ async function handleListSessions(ctx) {
     message += `🆕 *OPEN TICKETS (${openSessions.length})* - Waiting for support\n`;
     for (const s of openSessions) {
       const lastMsg = s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
-      const lastText = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
+      const lastTextRaw = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
+      const lastText = sanitizeText(lastTextRaw);
       const waitingTime = Math.floor((Date.now() - new Date(s.createdAt).getTime()) / 60000); // minutes
 
       message += `• \`${s.token}\` (User ${s.userId}) - ${waitingTime}m ago\n`;
