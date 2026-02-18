@@ -5,6 +5,41 @@ const { isOwnerOrAdmin } = require('./userManagement');
 
 const discountState = new Map();
 
+// Helper: Parse duration string (e.g. "1h", "30m", "1d")
+function parseDuration(input) {
+  if (!input) return null;
+  const regex = /^(\d+)([mhd])$/i;
+  const match = input.match(regex);
+
+  if (!match) return null;
+
+  const value = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+
+  let multiplier = 0;
+  switch (unit) {
+    case 'm': multiplier = 60 * 1000; break;
+    case 'h': multiplier = 60 * 60 * 1000; break;
+    case 'd': multiplier = 24 * 60 * 60 * 1000; break;
+  }
+
+  return value * multiplier;
+}
+
+// Helper: Format remaining time
+function formatRemaining(expiry) {
+  if (!expiry) return '';
+  const now = Date.now();
+  if (now > expiry) return 'EXPIRED';
+
+  const diff = expiry - now;
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 // Helper: safely extract category name string
 function getCatName(cat, lang = 'ms') {
   if (!cat || !cat.name) return 'Unknown';
@@ -39,7 +74,15 @@ async function handleCategoryDiscounts(ctx) {
         const discountText = c.discount.type === 'percentage'
           ? `${c.discount.value}%`
           : `RM${c.discount.value}`;
-        return `${getCatIcon(c)} *${getCatName(c, 'ms')}*\n   💰 Diskaun: ${discountText}`;
+
+        // Expiry check
+        let expiryText = '';
+        if (c.discount.expiry) {
+          const remain = formatRemaining(c.discount.expiry);
+          expiryText = remain === 'EXPIRED' ? ' (⚠️ Expired)' : ` (⏳ ${remain})`;
+        }
+
+        return `${getCatIcon(c)} *${getCatName(c, 'ms')}*\n   💰 Diskaun: ${discountText}${expiryText}`;
       }).join('\n\n')
       : '📭 Tiada diskaun kategori aktif') +
     `\n\nPilih kategori untuk urus diskaun:`
@@ -50,7 +93,14 @@ async function handleCategoryDiscounts(ctx) {
         const discountText = c.discount.type === 'percentage'
           ? `${c.discount.value}%`
           : `RM${c.discount.value}`;
-        return `${getCatIcon(c)} *${getCatName(c, 'en')}*\n   💰 Discount: ${discountText}`;
+
+        let expiryText = '';
+        if (c.discount.expiry) {
+          const remain = formatRemaining(c.discount.expiry);
+          expiryText = remain === 'EXPIRED' ? ' (⚠️ Expired)' : ` (⏳ ${remain})`;
+        }
+
+        return `${getCatIcon(c)} *${getCatName(c, 'en')}*\n   💰 Discount: ${discountText}${expiryText}`;
       }).join('\n\n')
       : '📭 No active category discounts') +
     `\n\nSelect category to manage discount:`;
@@ -93,13 +143,23 @@ async function handleCategoryDiscountDetail(ctx, categoryId) {
   const products = await db.getProducts();
   const categoryProducts = products.filter(p => p.categoryId === categoryId && p.active);
 
+  // Check expiry for display
+  let expiryDisplay = '';
+  if (category.discount && category.discount.expiry) {
+    const remain = formatRemaining(category.discount.expiry);
+    expiryDisplay = remain === 'EXPIRED'
+      ? `\n⚠️ Status: *Tamat Tempoh (Expired)*`
+      : `\n⏳ Tamat: *${remain} lagi*`;
+  }
+
   const text = lang === 'ms'
     ? `🏷️ *Diskaun: ${getCatIcon(category)} ${getCatName(category, 'ms')}*\n\n` +
     `📦 Produk dalam kategori: ${categoryProducts.length}\n\n` +
     (category.discount
       ? `✅ *Diskaun Aktif*\n` +
       `Jenis: ${category.discount.type === 'percentage' ? 'Peratusan' : 'Tetap'}\n` +
-      `Nilai: ${category.discount.type === 'percentage' ? `${category.discount.value}%` : `RM${category.discount.value}`}\n\n` +
+      `Nilai: ${category.discount.type === 'percentage' ? `${category.discount.value}%` : `RM${category.discount.value}`}` +
+      `${expiryDisplay}\n\n` +
       `Semua ${categoryProducts.length} produk dalam kategori ini mendapat diskaun.`
       : `❌ *Tiada Diskaun*\n\nTambah diskaun untuk kategori ini.`) +
     `\n\nPilih tindakan:`
@@ -108,7 +168,8 @@ async function handleCategoryDiscountDetail(ctx, categoryId) {
     (category.discount
       ? `✅ *Active Discount*\n` +
       `Type: ${category.discount.type === 'percentage' ? 'Percentage' : 'Fixed'}\n` +
-      `Value: ${category.discount.type === 'percentage' ? `${category.discount.value}%` : `RM${category.discount.value}`}\n\n` +
+      `Value: ${category.discount.type === 'percentage' ? `${category.discount.value}%` : `RM${category.discount.value}`}` +
+      `${expiryDisplay}\n\n` +
       `All ${categoryProducts.length} products in this category get discount.`
       : `❌ *No Discount*\n\nAdd discount for this category.`) +
     `\n\nChoose action:`;
@@ -146,7 +207,8 @@ async function handleAddCategoryDiscount(ctx, categoryId, type) {
   const user = await db.getUser(adminId);
   const lang = user?.language || 'ms';
 
-  discountState.set(adminId, { categoryId, type });
+  // Initialize state with step 'value'
+  discountState.set(adminId, { categoryId, type, step: 'value' });
 
   await ctx.answerCbQuery();
   await ctx.reply(
@@ -171,58 +233,88 @@ async function processDiscountInput(ctx) {
 
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
-  const value = parseFloat(ctx.message.text.trim());
 
-  if (isNaN(value) || value <= 0) {
+  // --- STEP 1: VALUE ---
+  if (state.step === 'value') {
+    const value = parseFloat(ctx.message.text.trim());
+
+    if (isNaN(value) || value <= 0) {
+      await ctx.reply(lang === 'ms' ? '❌ Nilai tidak sah!' : '❌ Invalid value!');
+      return true;
+    }
+
+    if (state.type === 'percentage' && value > 100) {
+      await ctx.reply(lang === 'ms' ? '❌ Max 100%!' : '❌ Max 100%!');
+      return true;
+    }
+
+    // Save temp value and move to step 2
+    state.tempValue = value;
+    state.step = 'expiry';
+    discountState.set(userId, state); // Update state
+
     await ctx.reply(
       lang === 'ms'
-        ? '❌ Nilai tidak sah! Sila masukkan nombor yang sah.'
-        : '❌ Invalid value! Please enter a valid number.'
+        ? `⏳ *Tetapkan Tamat Tempoh?*\n\nMasukkan tempoh masa (contoh: \`1h\`, \`30m\`, \`1d\`).\n\nAtau balas **0** atau **no** untuk diskaun kekal (tiada expired).`
+        : `⏳ *Set Expiry?*\n\nEnter duration (e.g. \`1h\`, \`30m\`, \`1d\`).\n\nOr reply **0** or **no** for permanent discount (no expiry).`,
+      { parse_mode: 'Markdown' }
     );
     return true;
   }
 
-  if (state.type === 'percentage' && value > 100) {
-    await ctx.reply(
-      lang === 'ms'
-        ? '❌ Peratusan mesti antara 1-100!'
-        : '❌ Percentage must be between 1-100!'
-    );
-    return true;
-  }
+  // --- STEP 2: EXPIRY ---
+  if (state.step === 'expiry') {
+    const input = ctx.message.text.trim().toLowerCase();
+    let expiry = null;
 
-  const categories = await db.getCategories();
-  const categoryIdx = categories.findIndex(c => c.id === state.categoryId);
+    if (input !== '0' && input !== 'no' && input !== 'none') {
+      const duration = parseDuration(input);
+      if (!duration) {
+        await ctx.reply(lang === 'ms'
+          ? '❌ Format salah! Guna format seperti `1h`, `30m`, `1d`.'
+          : '❌ Invalid format! Use format like `1h`, `30m`, `1d`.'
+        );
+        return true;
+      }
+      // Calculate expiry timestamp
+      expiry = Date.now() + duration;
+    }
 
-  if (categoryIdx === -1) {
+    const value = state.tempValue;
+    const categories = await db.getCategories();
+    const categoryIdx = categories.findIndex(c => c.id === state.categoryId);
+
+    if (categoryIdx === -1) {
+      discountState.delete(userId);
+      await ctx.reply(lang === 'ms' ? '❌ Kategori hilang.' : '❌ Category missing.');
+      return true;
+    }
+
+    // Save with expiry
+    categories[categoryIdx].discount = {
+      type: state.type,
+      value: value,
+      expiry: expiry
+    };
+
+    await db.saveCategories(categories);
     discountState.delete(userId);
-    await ctx.reply(lang === 'ms' ? '❌ Kategori tidak dijumpai' : '❌ Category not found');
+
+    const discountText = state.type === 'percentage' ? `${value}%` : `RM${value}`;
+    const expiryText = expiry
+      ? (lang === 'ms' ? `\n⏳ Tamat: ${formatRemaining(expiry)}` : `\n⏳ Ends: ${formatRemaining(expiry)}`)
+      : (lang === 'ms' ? '\n♾️ Tiada had masa' : '\n♾️ Permanent');
+
+    await ctx.reply(
+      lang === 'ms'
+        ? `✅ *Diskaun Saved!*\n\n🏷️ Kategori: ${getCatName(categories[categoryIdx], 'ms')}\n💰 Diskaun: ${discountText}${expiryText}\n\nSemua produk dalam kategori ini kini mendapat diskaun.`
+        : `✅ *Discount Saved!*\n\n🏷️ Category: ${getCatName(categories[categoryIdx], 'en')}\n💰 Discount: ${discountText}${expiryText}\n\nAll products in this category now get this discount.`,
+      { parse_mode: 'Markdown' }
+    );
     return true;
   }
 
-  categories[categoryIdx].discount = {
-    type: state.type,
-    value: value
-  };
-
-  await db.saveCategories(categories);
-  discountState.delete(userId);
-
-  const discountText = state.type === 'percentage' ? `${value}%` : `RM${value}`;
-
-  await ctx.reply(
-    lang === 'ms'
-      ? `✅ *Diskaun berjaya ditambah!*\n\n` +
-      `🏷️ Kategori: ${getCatName(categories[categoryIdx], 'ms')}\n` +
-      `💰 Diskaun: ${discountText}\n\n` +
-      `Semua produk dalam kategori ini kini mendapat diskaun ini.`
-      : `✅ *Discount successfully added!*\n\n` +
-      `🏷️ Category: ${getCatName(categories[categoryIdx], 'en')}\n` +
-      `💰 Discount: ${discountText}\n\n` +
-      `All products in this category now get this discount.`,
-    { parse_mode: 'Markdown' }
-  );
-  return true;
+  return false;
 }
 
 async function handleRemoveCategoryDiscount(ctx, categoryId) {
@@ -261,6 +353,11 @@ function getDiscountedPrice(product, categories) {
 
   if (!category || !category.discount) {
     return product.price;
+  }
+
+  // Expiry Check
+  if (category.discount.expiry && Date.now() > category.discount.expiry) {
+    return product.price; // Return original price if expired
   }
 
   if (category.discount.type === 'percentage') {
