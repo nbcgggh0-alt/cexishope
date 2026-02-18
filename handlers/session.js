@@ -96,7 +96,6 @@ async function handleJoinSession(ctx, token) {
   }
 
   // Claim logic
-  // Update DB refetch to ensure we have fresh state if needed, but 'session' var is usually fine
   session.adminId = userId;
   session.lastActiveAt = new Date().toISOString();
   await db.saveSession(session);
@@ -140,7 +139,7 @@ async function handleJoinSession(ctx, token) {
   profileMsg += `📦 Total Orders: ${userOrders.length}\n`;
 
   if (user.notes) {
-    profileMsg += `\n📝 *ADMIN NOTES:*\n_${user.notes}_\n`;
+    profileMsg += `\n📝 *ADMIN NOTES:*\n_${sanitizeText(user.notes)}_\n`;
   }
 
 
@@ -183,10 +182,6 @@ async function handleEndSession(ctx, token) {
   try {
     const user = await db.getUser(session.userId);
     const lang = user?.language || 'ms';
-
-    // If triggered by admin (ctx.from.id != session.userId), send msg to user
-    // If triggered by user, send msg to user (edit)
-    // We'll just assume standard notification
 
     await ctx.telegram.sendMessage(
       session.userId,
@@ -255,9 +250,6 @@ async function handleEndSession(ctx, token) {
   // If this was a callback query, answer it
   if (ctx.callbackQuery) {
     await ctx.answerCbQuery('Ticket closed.');
-    // Refresh list if called from dashboard
-    // We can't easily jump back to handleListSessions from here without passing ctx cleanly or just sending new msg
-    // Let's just suggest using /sessions
     await ctx.reply('🔒 Ticket closed. Use /sessions to return to dashboard.');
   }
 }
@@ -393,7 +385,7 @@ async function handleSessionMessage(ctx) {
   if (adminSession) {
     const messageData = {
       from: 'admin',
-      type: 'unknown', // Detailed type will be inferred or we can just store 'copy'
+      type: 'unknown',
       timestamp: new Date().toISOString()
     };
 
@@ -445,8 +437,6 @@ async function handleSessionMessage(ctx) {
     } else {
       // WAITING FOR ADMIN (Debounce Logic)
       try {
-        // Check sending history to prevent spam
-        // We look for the last 'system_waiting' message in the session
         const messages = userSession.messages || [];
         const lastWaitingMsg = [...messages].reverse().find(m => m.type === 'system_waiting');
 
@@ -464,7 +454,6 @@ async function handleSessionMessage(ctx) {
         if (shouldSend) {
           await ctx.reply('⏳ Your message has been saved. Waiting for an admin to join the session...');
 
-          // Log this system message so we can debounce next time
           await db.addSessionMessage(userSession.token, {
             from: 'system',
             type: 'system_waiting',
@@ -495,7 +484,7 @@ async function handleListSessions(ctx) {
   const { isAdmin } = require('./admin');
 
   if (!await isAdmin(userId)) {
-    await ctx.reply('Unauthorized');
+    await ctx.answerCbQuery('Unauthorized');
     return;
   }
 
@@ -513,57 +502,70 @@ async function handleListSessions(ctx) {
 
   // 1. My Active Sessions
   if (mySessions.length > 0) {
-    message += `👤 *YOUR ACTIVE TICKETS (${mySessions.length})*\n`;
-    for (const s of mySessions) {
+    message += `👤 <b>YOUR ACTIVE TICKETS (${mySessions.length})</b>\n`;
+    const displaySessions = mySessions.slice(0, 10);
+
+    for (const s of displaySessions) {
       const lastMsg = s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
       const lastTextRaw = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
-      const lastText = sanitizeText(lastTextRaw);
+      const lastText = escapeHtml(lastTextRaw);
       const time = new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      message += `• \`${s.token}\` (User ${s.userId}) - ${time}\n`;
-      message += `  └ _${lastText}_\n\n`;
+      message += `• <code>${s.token}</code> (User ${s.userId}) - ${time}\n`;
+      message += `  └ <i>${lastText}</i>\n\n`;
 
       buttons.push([Markup.button.callback(`🟢 Resume: ${s.token}`, `active_session_${s.token}`)]);
     }
+
+    if (mySessions.length > 10) {
+      message += `<i>...and ${mySessions.length - 10} more.</i>\n\n`;
+    }
   } else {
-    message += '👤 *YOUR ACTIVE TICKETS*\n_No active tickets._\n\n';
+    message += '👤 <b>YOUR ACTIVE TICKETS</b>\n<i>No active tickets.</i>\n\n';
   }
 
   // 2. Open Sessions (Waiting)
   if (openSessions.length > 0) {
-    message += `🆕 *OPEN TICKETS (${openSessions.length})* - Waiting for support\n`;
-    for (const s of openSessions) {
+    message += `🆕 <b>OPEN TICKETS (${openSessions.length})</b> - Waiting for support\n`;
+    const displaySessions = openSessions.slice(0, 10);
+
+    for (const s of displaySessions) {
       const lastMsg = s.messages.length > 0 ? s.messages[s.messages.length - 1] : null;
       const lastTextRaw = lastMsg ? (lastMsg.type === 'text' ? lastMsg.text.substring(0, 20) : `[${lastMsg.type}]`) : 'No messages';
-      const lastText = sanitizeText(lastTextRaw);
+      const lastText = escapeHtml(lastTextRaw);
       const waitingTime = Math.floor((Date.now() - new Date(s.createdAt).getTime()) / 60000); // minutes
 
-      message += `• \`${s.token}\` (User ${s.userId}) - ${waitingTime}m ago\n`;
-      message += `  └ _${lastText}_\n\n`;
+      message += `• <code>${s.token}</code> (User ${s.userId}) - ${waitingTime}m ago\n`;
+      message += `  └ <i>${lastText}</i>\n\n`;
 
       buttons.push([Markup.button.callback(`✋ Claim: ${s.token}`, `join_session_${s.token}`)]);
     }
+
+    if (openSessions.length > 10) {
+      message += `<i>...and ${openSessions.length - 10} more.</i>\n\n`;
+    }
   } else {
-    message += '🆕 *OPEN TICKETS*\n_No pending tickets._\n\n';
+    message += '🆕 <b>OPEN TICKETS</b>\n<i>No pending tickets.</i>\n\n';
   }
 
   // 3. Other Admin Sessions
   if (otherSessions.length > 0) {
-    message += `👨‍💼 *OTHER AGENTS (${otherSessions.length})*\n`;
-    message += `_Other admins are handling ${otherSessions.length} tickets._\n`;
+    message += `👨‍💼 <b>OTHER AGENTS (${otherSessions.length})</b>\n`;
+    message += `<i>Other admins are handling ${otherSessions.length} tickets.</i>\n`;
   }
 
   buttons.push([Markup.button.callback('🔄 Refresh Dashboard', 'refresh_sessions')]);
 
   try {
     if (ctx.callbackQuery) {
-      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
+      await ctx.editMessageText(message, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
     } else {
-      await ctx.reply(message, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
+      await ctx.reply(message, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
     }
   } catch (e) {
-    // Fallback if edit fails (e.g. same content)
-    if (!ctx.callbackQuery) await ctx.reply('Error updating dashboard');
+    console.error('Dashboard Error:', e.message);
+    const errText = escapeHtml(e.message || 'Unknown error');
+    if (!ctx.callbackQuery) await ctx.reply(`Error updating dashboard: ${errText}`);
   }
 }
 
