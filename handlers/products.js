@@ -340,7 +340,36 @@ async function handleBuyProduct(ctx, productId) {
   });
 }
 
+// Wrapper for error handling
 async function handleConfirmBuy(ctx, productId) {
+  try {
+    const userId = ctx.from?.id;
+    if (!userId) throw new Error("User ID missing");
+
+    await _handleConfirmBuyInternal(ctx, productId);
+  } catch (error) {
+    console.error('CRITICAL ERROR during order:', error);
+
+    // Attempt to notify user
+    try {
+      const userId = ctx.from?.id;
+      const user = userId ? await db.getUser(userId) : null;
+      const lang = user?.language || 'ms';
+
+      const msg = lang === 'ms'
+        ? `❌ Ralat Sistem: ${error.message}\nSila lapor kod error ini kepada admin.`
+        : `❌ System Error: ${error.message}\nPlease report this error code to admin.`;
+
+      await ctx.reply(msg);
+    } catch (err2) {
+      console.error('Failed to send error message:', err2);
+      await ctx.reply('❌ Critical System Error. Please contact admin.');
+    }
+  }
+}
+
+// Original logic moved here
+async function _handleConfirmBuyInternal(ctx, productId) {
   const userId = ctx.from.id;
   const user = await db.getUser(userId);
   const lang = user?.language || 'ms';
@@ -370,34 +399,8 @@ async function handleConfirmBuy(ctx, productId) {
     return;
   }
 
-  // Duplicate purchase guard: block if user has pending order for same product
-  const transactions = await db.getTransactions();
-  const existingOrder = transactions.find(t =>
-    t.userId === userId &&
-    t.productId === productId &&
-    (t.status === 'pending' || t.status === 'awaiting_verification')
-  );
-
-  if (existingOrder) {
-    const safeProductName = escapeMarkdown(product.name.en || product.name.ms);
-    const safeOrderId = escapeMarkdown(existingOrder.id);
-
-    const msg = lang === 'ms'
-      ? `⚠️ *Pesanan Sedia Ada!*\n\n` +
-      `Anda sudah mempunyai pesanan aktif untuk produk ini.\n\n` +
-      `🆔 Order: \`${safeOrderId}\`\n` +
-      `📦 Produk: ${safeProductName}\n` +
-      `📊 Status: ${existingOrder.status === 'pending' ? '⏳ Menunggu Bayaran' : '🔍 Menunggu Pengesahan'}\n\n` +
-      `💡 Sila selesaikan pesanan sedia ada sebelum buat pesanan baru.`
-      : `⚠️ *Existing Order Found!*\n\n` +
-      `You already have an active order for this product.\n\n` +
-      `🆔 Order: \`${safeOrderId}\`\n` +
-      `📦 Product: ${safeProductName}\n` +
-      `📊 Status: ${existingOrder.status === 'pending' ? '⏳ Awaiting Payment' : '🔍 Awaiting Verification'}\n\n` +
-      `💡 Please complete your existing order before placing a new one.`;
-    await ctx.reply(msg, { parse_mode: 'Markdown' });
-    return;
-  }
+  // Duplicate purchase guard REMOVED by request to allow multiple orders
+  // Old code block: lines 373-400 deleted
 
   // Calculate category discount first
   const productPrice = parseFloat(product.price);
@@ -472,11 +475,13 @@ async function handleConfirmBuy(ctx, productId) {
 
   let voucherInfo = '';
   const finalAmountDisplay = await getPriceDisplay(finalAmount, userCurrency);
+  const originalPriceDisplay = await getPriceDisplay(product.price, userCurrency);
+  const categoryDiscountAmount = productPrice - discountedPrice;
+  const categoryDiscountDisplay = await getPriceDisplay(categoryDiscountAmount, userCurrency);
 
   if (voucherResult.voucherCode && voucherDiscount > 0) {
     const discountPct = voucherResult.discountPercentage || 0;
-    const discountDisplay = await getPriceDisplay(discount, userCurrency);
-    const originalPriceDisplay = await getPriceDisplay(product.price, userCurrency);
+    const discountDisplay = await getPriceDisplay(voucherDiscount, userCurrency);
 
     voucherInfo = lang === 'ms'
       ? `\n\n🎫 *Baucher Digunakan!*\n💳 Kod: ${voucherResult.voucherCode}\n💰 Harga Asal: ${originalPriceDisplay}\nLabels Diskaun Kategori: -${categoryDiscountDisplay}\n🎉 Diskaun Baucher ${discountPct}%: -${discountDisplay}\n✅ Harga Akhir: ${finalAmountDisplay}`

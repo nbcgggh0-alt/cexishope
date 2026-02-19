@@ -11,7 +11,8 @@ async function convertPrice(priceInMYR, targetCurrency) {
     if (!targetCurrency || targetCurrency === 'MYR') return parseFloat(priceInMYR).toFixed(2);
 
     const rates = await fetchExchangeRates();
-    const rate = rates[targetCurrency] || 1;
+    // Safety check: if rates unavailable, default to 1 (MYR)
+    const rate = (rates && rates[targetCurrency]) ? rates[targetCurrency] : 1;
 
     const converted = priceInMYR * rate;
 
