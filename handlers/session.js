@@ -37,7 +37,6 @@ async function handleSupport(ctx) {
     await safeEditMessage(ctx, t('sessionCreated', lang, token), {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
-        [Markup.button.url('🌐 Open Web Chat', `${config.WEB_URL}/chat.html?token=${token}`)],
         [Markup.button.callback(t('btnBack', lang), 'main_menu')]
       ])
     });
@@ -50,12 +49,7 @@ async function handleSupport(ctx) {
         await ctx.telegram.sendMessage(
           adminId,
           `💬 *New Support Session*\n\nToken: \`${token}\`\nUser: ${userId}\n\nUse /join ${token} to enter session`,
-          {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([
-              [Markup.button.url('🌐 Join via Web', `${config.WEB_URL}/chat.html?token=${token}&role=admin`)]
-            ])
-          }
+          { parse_mode: 'Markdown' }
         );
       } catch (error) {
         console.error(`Failed to notify admin ${adminId}:`, error.message);
@@ -67,7 +61,6 @@ async function handleSupport(ctx) {
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
-          [Markup.button.url('🌐 Open Web Chat', `${config.WEB_URL}/chat.html?token=${activeSession.token}`)],
           [Markup.button.callback('🔚 End Session', `end_session_${activeSession.token}`)],
           [Markup.button.callback(t('btnBack', lang), 'main_menu')]
         ])
@@ -162,7 +155,6 @@ async function handleJoinSession(ctx, token) {
   profileMsg += `\n💬 *You are now chatting with this user.*`;
 
   const controls = [
-    [Markup.button.url('🌐 Open Web Chat', `${config.WEB_URL}/chat.html?token=${token}&role=admin`)],
     [Markup.button.callback('🛑 Close Ticket', `end_session_${token}`), Markup.button.callback('🔙 Dashboard', 'refresh_sessions')],
     [Markup.button.callback('📝 Quick Reply', `quick_reply_${token}`)] // Placeholder for future feature
   ];
@@ -409,10 +401,6 @@ async function handleSessionMessage(ctx) {
 
     await db.addSessionMessage(adminSession.token, messageData);
 
-    if (ctx.io) {
-      ctx.io.to(adminSession.token).emit('new_message', messageData);
-    }
-
     try {
       // Use copyMessage for robust media support (Stickers, functional features, etc.)
       await ctx.copyMessage(adminSession.userId);
@@ -439,10 +427,6 @@ async function handleSessionMessage(ctx) {
     }
 
     await db.addSessionMessage(userSession.token, messageData);
-
-    if (ctx.io) {
-      ctx.io.to(userSession.token).emit('new_message', messageData);
-    }
 
     if (userSession.adminId) {
       try {
@@ -646,9 +630,6 @@ async function handleSendToSession(ctx, token, message) {
   };
 
   await db.addSessionMessage(session.token, messageData);
-  if (ctx.io) {
-    ctx.io.to(session.token).emit('new_message', messageData);
-  }
 
   // Update last active
   session.lastActiveAt = new Date().toISOString();

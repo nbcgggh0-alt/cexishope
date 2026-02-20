@@ -503,7 +503,6 @@ async function _handleConfirmBuyInternal(ctx, productId) {
   const buttons = [
     [Markup.button.callback('🇲🇾 Touch \'n Go / DuitNow (Malaysia)', `paymethod_tng_${orderId}`)],
     [Markup.button.callback('🇮🇩 QRIS / DANA (Indonesia)', `paymethod_qris_${orderId}`)],
-    [Markup.button.url('🌐 Buka Live Chat (Web)', `${config.WEB_URL}/chat.html?token=${sessionToken}`)],
     [Markup.button.callback(lang === 'ms' ? '💬 Chat via Telegram' : '💬 Chat via Telegram', 'support')],
     [Markup.button.callback(t('btnHome', lang), 'main_menu')]
   ];
