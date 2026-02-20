@@ -46,7 +46,92 @@ const { t } = require('./utils/translations');
 const config = require('./config');
 const { checkRateLimit } = require('./utils/security'); // Security Utils
 
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+app.use(cors());
+app.use(express.static('public'));
+
+// Express API to fetch initial session data
+app.get('/api/session/:token', async (req, res) => {
+  try {
+    const session = await db.getSession(req.params.token);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+
+// Attach io to bot context so handlers can use it
+bot.context.io = io;
+
+// Setup socket.io connections
+io.on('connection', (socket) => {
+  console.log('🌐 Web Chat user connected:', socket.id);
+
+  socket.on('join_session', (token) => {
+    socket.join(token);
+    console.log(`Socket ${socket.id} joined session ${token}`);
+  });
+
+  socket.on('send_message', async (data) => {
+    try {
+      if (!data.token || !data.text) return;
+      const session = await db.getSession(data.token);
+      if (!session || session.status !== 'active') {
+        socket.emit('error', 'Session not active or not found');
+        return;
+      }
+
+      const messageData = {
+        from: data.sender || 'user',
+        type: 'text',
+        text: data.text,
+        timestamp: new Date().toISOString()
+      };
+
+      await db.addSessionMessage(session.token, messageData);
+      io.to(session.token).emit('new_message', messageData);
+
+      // Forward to Telegram
+      if (messageData.from === 'admin') {
+        bot.telegram.sendMessage(session.userId, `👨‍💼 [Admin Web]: ${data.text}`);
+      } else {
+        if (session.adminId) {
+          bot.telegram.sendMessage(session.adminId, `🌐 [User Web]: ${data.text}`);
+        } else {
+          socket.emit('new_message', {
+            from: 'system',
+            type: 'system_waiting',
+            text: 'Waiting for an admin to join the session...',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Socket message error:', err);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log('🌐 Web Chat user disconnected:', socket.id);
+  });
+});
+
+// Start web server
+const webPort = config.WEB_PORT || 3000;
+server.listen(webPort, () => {
+  console.log(`🌐 Web Server & WebSocket running on port ${webPort}`);
+});
 
 // Rate Limiting Middleware
 bot.use(async (ctx, next) => {

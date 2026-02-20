@@ -3,6 +3,7 @@ const db = require('../utils/database');
 const { t } = require('../utils/translations');
 const { generateSessionToken, isSessionExpired, sanitizeText } = require('../utils/helpers');
 const { safeEditMessage } = require('../utils/messageHelper');
+const config = require('../config');
 
 async function handleSupport(ctx) {
   const userId = ctx.from.id;
@@ -36,6 +37,7 @@ async function handleSupport(ctx) {
     await safeEditMessage(ctx, t('sessionCreated', lang, token), {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
+        [Markup.button.url('🌐 Open Web Chat', `${config.WEB_URL}/chat.html?token=${token}`)],
         [Markup.button.callback(t('btnBack', lang), 'main_menu')]
       ])
     });
@@ -48,7 +50,12 @@ async function handleSupport(ctx) {
         await ctx.telegram.sendMessage(
           adminId,
           `💬 *New Support Session*\n\nToken: \`${token}\`\nUser: ${userId}\n\nUse /join ${token} to enter session`,
-          { parse_mode: 'Markdown' }
+          {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+              [Markup.button.url('🌐 Join via Web', `${config.WEB_URL}/chat.html?token=${token}&role=admin`)]
+            ])
+          }
         );
       } catch (error) {
         console.error(`Failed to notify admin ${adminId}:`, error.message);
@@ -60,6 +67,7 @@ async function handleSupport(ctx) {
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
+          [Markup.button.url('🌐 Open Web Chat', `${config.WEB_URL}/chat.html?token=${activeSession.token}`)],
           [Markup.button.callback('🔚 End Session', `end_session_${activeSession.token}`)],
           [Markup.button.callback(t('btnBack', lang), 'main_menu')]
         ])
@@ -154,6 +162,7 @@ async function handleJoinSession(ctx, token) {
   profileMsg += `\n💬 *You are now chatting with this user.*`;
 
   const controls = [
+    [Markup.button.url('🌐 Open Web Chat', `${config.WEB_URL}/chat.html?token=${token}&role=admin`)],
     [Markup.button.callback('🛑 Close Ticket', `end_session_${token}`), Markup.button.callback('🔙 Dashboard', 'refresh_sessions')],
     [Markup.button.callback('📝 Quick Reply', `quick_reply_${token}`)] // Placeholder for future feature
   ];
@@ -400,6 +409,10 @@ async function handleSessionMessage(ctx) {
 
     await db.addSessionMessage(adminSession.token, messageData);
 
+    if (ctx.io) {
+      ctx.io.to(adminSession.token).emit('new_message', messageData);
+    }
+
     try {
       // Use copyMessage for robust media support (Stickers, functional features, etc.)
       await ctx.copyMessage(adminSession.userId);
@@ -426,6 +439,10 @@ async function handleSessionMessage(ctx) {
     }
 
     await db.addSessionMessage(userSession.token, messageData);
+
+    if (ctx.io) {
+      ctx.io.to(userSession.token).emit('new_message', messageData);
+    }
 
     if (userSession.adminId) {
       try {
@@ -454,12 +471,16 @@ async function handleSessionMessage(ctx) {
         if (shouldSend) {
           await ctx.reply('⏳ Your message has been saved. Waiting for an admin to join the session...');
 
-          await db.addSessionMessage(userSession.token, {
+          const waitingMsg = {
             from: 'system',
             type: 'system_waiting',
-            text: 'Waiting for admin prompt sent',
+            text: 'Waiting for an admin to join the session...',
             timestamp: new Date().toISOString()
-          });
+          };
+          await db.addSessionMessage(userSession.token, waitingMsg);
+          if (ctx.io) {
+            ctx.io.to(userSession.token).emit('new_message', waitingMsg);
+          }
         }
       } catch (error) {
         console.error('Failed to send waiting message:', error.message);
@@ -625,6 +646,9 @@ async function handleSendToSession(ctx, token, message) {
   };
 
   await db.addSessionMessage(session.token, messageData);
+  if (ctx.io) {
+    ctx.io.to(session.token).emit('new_message', messageData);
+  }
 
   // Update last active
   session.lastActiveAt = new Date().toISOString();

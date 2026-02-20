@@ -23,6 +23,10 @@ module.exports = {
   // Channel ID for Transaction Notifications (Optional)
   TRANSACTION_CHANNEL_ID: process.env.TRANSACTION_CHANNEL_ID,
 
+  // Web Server Port (Chat UI)
+  WEB_PORT: process.env.WEB_PORT || 3000,
+  WEB_URL: process.env.WEB_URL || `http://127.0.0.1:${process.env.WEB_PORT || 3000}`,
+
   store: {
     name: process.env.STORE_NAME || 'CexiStore Ultimate Pro',
     currency: process.env.STORE_CURRENCY || 'MYR',

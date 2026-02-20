@@ -9,6 +9,7 @@ const { getPriceDisplay, convertPrice, formatPrice } = require('../utils/currenc
 const fs = require('fs').promises;
 const path = require('path');
 const { escapeMarkdown } = require('../utils/security'); // Security Utils
+const config = require('../config');
 
 async function handleBuyProducts(ctx) {
   const userId = ctx.from.id;
@@ -502,7 +503,8 @@ async function _handleConfirmBuyInternal(ctx, productId) {
   const buttons = [
     [Markup.button.callback('🇲🇾 Touch \'n Go / DuitNow (Malaysia)', `paymethod_tng_${orderId}`)],
     [Markup.button.callback('🇮🇩 QRIS / DANA (Indonesia)', `paymethod_qris_${orderId}`)],
-    [Markup.button.callback(lang === 'ms' ? '💬 Chat dengan Admin' : '💬 Chat with Admin', 'support')],
+    [Markup.button.url('🌐 Buka Live Chat (Web)', `${config.WEB_URL}/chat.html?token=${sessionToken}`)],
+    [Markup.button.callback(lang === 'ms' ? '💬 Chat via Telegram' : '💬 Chat via Telegram', 'support')],
     [Markup.button.callback(t('btnHome', lang), 'main_menu')]
   ];
 
