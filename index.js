@@ -75,8 +75,11 @@ app.get('/api/session/:token', async (req, res) => {
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
-// Attach io to bot context so handlers can use it
-bot.context.io = io;
+// Attach io to bot context via middleware (safer than prototype injection)
+bot.use((ctx, next) => {
+  ctx.io = io;
+  return next();
+});
 
 // Setup socket.io connections
 io.on('connection', (socket) => {
