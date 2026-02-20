@@ -175,9 +175,14 @@ else
 fi
 
 # 7. Restart Bot Automatically
-log_step "Restarting Bot Process..."
+log_step "Killing zombie node processes & Restarting Bot..."
+# Forcibly kill all node instances to prevent "EADDRINUSE" port 3000 errors
+killall -9 node 2>/dev/null || true
+
 if command -v pm2 > /dev/null; then
-    pm2 restart cexistor || log_warn "Failed to restart using PM2. Please run 'pm2 restart cexistor' manually."
+    # Start if it doesn't exist, otherwise restart
+    pm2 start index.js --name cexistor 2>/dev/null || pm2 restart cexistor
+    pm2 save
     log_success "Bot restarted successfully!"
 else
     log_warn "PM2 not found. Cannot restart automatically. Run node index.js or install PM2."
