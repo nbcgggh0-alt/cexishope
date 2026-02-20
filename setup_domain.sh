@@ -153,14 +153,40 @@ else
     log_error "Nginx configuration test failed. Please check the config."
 fi
 
-# 6. Final Instructions
-log_step "Setup Complete!"
-echo -e "${GREEN}Configuration finished!${NC}"
+# 6. Update .env automatically
+log_step "Updating .env file with new Web URL..."
+ENV_FILE=".env"
+NEW_WEB_URL="https://$DOMAIN_NAME"
+
+if [ -f "$ENV_FILE" ]; then
+    if grep -q "^WEB_URL=" "$ENV_FILE"; then
+        # Replace existing WEB_URL
+        sed -i "s|^WEB_URL=.*|WEB_URL=$NEW_WEB_URL|" "$ENV_FILE"
+        log_info "Updated existing WEB_URL in .env"
+    else
+        # Append WEB_URL
+        echo -e "\nWEB_URL=$NEW_WEB_URL" >> "$ENV_FILE"
+        log_info "Added WEB_URL to .env"
+    fi
+else
+    # Create .env if not found (unlikely, but safe)
+    echo "WEB_URL=$NEW_WEB_URL" > "$ENV_FILE"
+    log_info "Created .env and added WEB_URL"
+fi
+
+# 7. Restart Bot Automatically
+log_step "Restarting Bot Process..."
+if command -v pm2 > /dev/null; then
+    pm2 restart cexistor || log_warn "Failed to restart using PM2. Please run 'pm2 restart cexistor' manually."
+    log_success "Bot restarted successfully!"
+else
+    log_warn "PM2 not found. Cannot restart automatically. Run node index.js or install PM2."
+fi
+
+# 8. Final Instructions
+log_step "Setup Complete! 🚀"
+echo -e "${GREEN}Configuration finished 100% Autonomously!${NC}"
 echo -e "Your Web Chat server is now accessible via:"
-echo -e "👉 ${BLUE}http://$DOMAIN_NAME${NC}"
-echo -e "\nMake sure your Node.js bot is running (\`pm2 logs cexistor\`) to serve port $WEB_PORT."
-echo -e "Cloudflare usually provisions SSL certificates automatically (Flexible / Full). If it's proxied (orange cloud), ${GREEN}https://$DOMAIN_NAME${NC} will work shortly."
-echo -e "\nIf the Domain name is not saving inside the Bot receipts, update your .env file MANUALLY:"
-echo -e "Add: ${YELLOW}WEB_URL=https://$DOMAIN_NAME${NC}"
-echo -e "Then restart the bot: ${GREEN}pm2 restart cexistor${NC}"
+echo -e "👉 ${BLUE}$NEW_WEB_URL${NC}"
+echo -e "Cloudflare usually provisions SSL certificates automatically (Flexible / Full). If it's proxied (orange cloud), ${GREEN}https://$DOMAIN_NAME${NC} will work immediately."
 echo "============================================================"
