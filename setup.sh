@@ -76,6 +76,7 @@ cd "$INSTALL_DIR"
 # 5. Install Project Dependencies
 log_step "Installing project dependencies..."
 npm install --production
+npm install express socket.io cors --production
 
 # 6. Setup Configuration (.env)
 if [ ! -f .env ]; then

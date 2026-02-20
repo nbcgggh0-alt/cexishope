@@ -59,6 +59,10 @@ app.use(cors());
 app.use(express.static('public'));
 
 // Express API to fetch initial session data
+app.get('/', (req, res) => {
+  res.send('CexiStore Web Server is Running. Append /chat.html?token=YOUR_TOKEN to enter a chat session.');
+});
+
 app.get('/api/session/:token', async (req, res) => {
   try {
     const session = await db.getSession(req.params.token);
